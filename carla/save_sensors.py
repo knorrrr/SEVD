@@ -5,7 +5,7 @@ import pygame
 import cv2
 import traceback
 import json
-from carla.bounding_boxes import create_kitti_datapoint
+from bounding_boxes import create_kitti_datapoint
 import concurrent.futures
 
 
