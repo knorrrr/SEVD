@@ -87,7 +87,7 @@ def attachSensorsToVehicle(world, data, vehicle_actor):
         sensor_references.append(sensor_actor)
 
         # PRINT CALIBRATION MATRICES
-        if sensor["type"] == "sensor.lidar.ray_cast_semantic":
+        if sensor["type"] == "sensor.lidar.ray_cast":
             lidar_2_world = sensor_actor.get_transform().get_matrix()
             print("LIDAR INFO")
             print("=================================================")
@@ -180,7 +180,7 @@ def attachSensorsForFixedPerception(world, data, coordinate):
         sensor_references.append(sensor_actor)
 
         # PRINT CALIBRATION MATRICES
-        if sensor["type"] == "sensor.lidar.ray_cast_semantic":
+        if sensor["type"] == "sensor.lidar.ray_cast":
             lidar_2_world = sensor_actor.get_transform().get_matrix()
             print("LIDAR INFO")
             print("=================================================")

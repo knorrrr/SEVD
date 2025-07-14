@@ -213,7 +213,7 @@ edges = [[0, 1], [1, 3], [3, 2], [2, 0], [0, 4], [4, 5],
 def saveAllSensors(out_root_folder, sensor_datas, sensor_types, world):
     sensor_datas.pop(0)
 
-    dvs_camera = {}
+    lidar_data = {}
     rgb_camera = {}
     depth_camera = {}
     futures = []
@@ -231,7 +231,19 @@ def saveAllSensors(out_root_folder, sensor_datas, sensor_types, world):
             sensor_name = sensor_types[i]
 
             if (sensor_name.find('dvs') != -1):
-                dvs_camera[sensor_name] = sensor_data
+                try:
+                    lidar = sensor_name.replace("dvs_camera","lidar")
+
+                    future = executor.submit(saveLidars, sensor_data, os.path.join(out_root_folder, lidar), 
+                                                                       lidar_data["lidar-front"])
+                    futures.append(future)
+                except Exception as error:
+                    print("An exception occurred in lidar sensor find:", error)
+                    traceback.print_exc()
+
+            if (sensor_name.find('lidar') != -1):
+                lidar_data[sensor_name] = sensor_data
+
 
             if (sensor_name.find('optical_flow') != -1):
                 optical_camera_callback(
@@ -252,19 +264,22 @@ def saveAllSensors(out_root_folder, sensor_datas, sensor_types, world):
                     out_root_folder, sensor_name))
 
             if (sensor_name.find('rgb_camera') != -1):
-                try:
-                    rgb_camera[sensor_name] = (
-                        sensor_data[i], os.path.join(out_root_folder, sensor_name))
-                    dvs = sensor_name.replace("rgb", "dvs")
-                    depth = sensor_name.replace("rgb", "depth")
-                    rgb_file_path = os.path.join(
-                        out_root_folder, sensor_name)
-                    future = executor.submit(saveRgbImage, sensor_data, rgb_file_path,
-                                             world, sensor, vehicle, dvs_camera[dvs], depth_camera[depth])
-                    futures.append(future)
-                except Exception as error:
-                    print("An exception occurred in rgb_camera sensor find:", error)
-                    traceback.print_exc()
+                saveOnlyRgb(sensor_data, os.path.join(
+                    out_root_folder, sensor_name))
+                # try:
+                #     rgb_camera[sensor_name] = (
+                #         sensor_data[i], os.path.join(out_root_folder, sensor_name))
+                #     dvs = sensor_name.replace("rgb", "dvs")
+                #     print("DVS Camera: ", dvs)
+                #     depth = sensor_name.replace("rgb", "depth")
+                #     rgb_file_path = os.path.join(
+                #         out_root_folder, sensor_name)
+                #     future = executor.submit(saveRgbImage, sensor_data, rgb_file_path,
+                #                              world, sensor, vehicle, dvs_camera[dvs], depth_camera[depth])
+                #     futures.append(future)
+                # except Exception as error:
+                #     print("An exception occurred in rgb_camera sensor find:", error)
+                #     traceback.print_exc()
 
             if (sensor_name.find('imu') != -1):
                 saveImu(sensor_data, os.path.join(
@@ -445,6 +460,30 @@ def save_kitti_3d_format(annotations, filepath):
         for element in annotations:
             file.write(str(element) + "\n")
 
+def saveOnlyRgb(output, filepath):
+    img = np.frombuffer(output.raw_data, dtype=np.uint8).reshape(
+            (output.height, output.width, 4))
+    output_file = os.path.join(
+            filepath, f'{output.frame}.png')
+    cv2.imwrite(output_file, img)
+
+def saveLidars(dvs, filepath, output):
+    print("Saving lidar data", filepath)
+    # Saeve the lidar data to disk
+    output.save_to_disk(filepath + '/%05d' % output.frame)
+    with open(filepath + "/lidar_metadata.txt", 'a') as fp:
+        fp.writelines(str(output) + ", ")
+        fp.writelines(str(output.transform) + "\n")
+    # Save the DVS data if available
+    try:
+        dvs_events = np.frombuffer(dvs.raw_data, dtype=np.dtype([
+            ('x', np.uint16), ('y', np.uint16), ('t', np.int64), ('pol', np.bool)
+        ]))
+        output_file_path = os.path.join(
+            filepath, f'dvs-{output.frame}-xytp.npz')
+        np.savez_compressed(output_file_path, dvs_events=dvs_events)
+    except Exception as error:
+        print("An exception occurred while saving DVS data:", error)
 
 def saveRgbImage(output, filepath, world, sensor, ego_vehicle, dvs, depth):
     try:
@@ -538,20 +577,20 @@ def saveRgbImage(output, filepath, world, sensor, ego_vehicle, dvs, depth):
         output_file = os.path.join(filepath, f'dvs-{output.frame}.png')
         pygame.image.save(surface, output_file)
 
-        save_pascal_voc_format(rgbbb, os.path.join(
-            filepath, f'{output.frame}.xml'), f'{output.frame}.png', output.width, output.height)
-        save_coco_format(rgbbb, os.path.join(
-            filepath, f'{output.frame}.json'), output.frame, f'{output.frame}.png', output.width, output.height)
+        # save_pascal_voc_format(rgbbb, os.path.join(
+        #     filepath, f'{output.frame}.xml'), f'{output.frame}.png', output.width, output.height)
+        # save_coco_format(rgbbb, os.path.join(
+        #     filepath, f'{output.frame}.json'), output.frame, f'{output.frame}.png', output.width, output.height)
 
-        save_pascal_voc_format(dvsbb, os.path.join(
-            filepath, f'dvs-{output.frame}.xml'), f'dvs-{output.frame}.png', output.width, output.height)
-        save_coco_format(dvsbb, os.path.join(
-            filepath, f'dvs-{output.frame}.json'), output.frame, f'dvs-{output.frame}.png', output.width, output.height)
+        # save_pascal_voc_format(dvsbb, os.path.join(
+        #     filepath, f'dvs-{output.frame}.xml'), f'dvs-{output.frame}.png', output.width, output.height)
+        # save_coco_format(dvsbb, os.path.join(
+        #     filepath, f'dvs-{output.frame}.json'), output.frame, f'dvs-{output.frame}.png', output.width, output.height)
 
-        save_kitti_3d_format(kitti3dbb, os.path.join(
-            filepath, f'{output.frame}.txt'))
-        save_kitti_3d_format(kitti3dbbDVS, os.path.join(
-            filepath, f'dvs-{output.frame}.txt'))
+        # save_kitti_3d_format(kitti3dbb, os.path.join(
+        #     filepath, f'{output.frame}.txt'))
+        # save_kitti_3d_format(kitti3dbbDVS, os.path.join(
+        #     filepath, f'dvs-{output.frame}.txt'))
 
     except Exception as error:
         print("An exception occurred:", error)

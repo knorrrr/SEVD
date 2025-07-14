@@ -106,7 +106,7 @@ def main():
     blueprintsWalkers = blueprint_library.filter('walker.pedestrian.*')
     walker_controller_bp = blueprint_library.find('controller.ai.walker')
     walkers_spawn_points = world.get_random_location_from_navigation()
-    lidar_segment_bp = blueprint_library.find('sensor.lidar.ray_cast_semantic')
+    lidar_segment_bp = blueprint_library.find('sensor.lidar.ray_cast')
 
     participant_density = {
         'bicycle': 0,
