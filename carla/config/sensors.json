@@ -56,7 +56,7 @@
                     "yaw": 0.0
                 }
             ],
-            "channels": 150,
+            "channels": 104,
             "range": 100.0,
             "rotation_frequency": 10.0,
             "points_per_second": 1370000,
@@ -77,9 +77,9 @@
                     "yaw": 0.0
                 }
             ],
-            "fov": 70.0,
-            "image_size_x": 1280,
-            "image_size_y": 960
+            "fov": 60.4,
+            "image_size_x": 640,
+            "image_size_y": 480
         },
         {
             "type": "sensor.camera.rgb",
