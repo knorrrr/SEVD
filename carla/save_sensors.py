@@ -468,8 +468,7 @@ def saveOnlyRgb(output, filepath):
     cv2.imwrite(output_file, img)
 
 def saveLidars(dvs, filepath, output):
-    print("Saving lidar data", filepath)
-    # Saeve the lidar data to disk
+    # Save the lidar data to disk
     output.save_to_disk(filepath + '/%05d' % output.frame)
     with open(filepath + "/lidar_metadata.txt", 'a') as fp:
         fp.writelines(str(output) + ", ")
