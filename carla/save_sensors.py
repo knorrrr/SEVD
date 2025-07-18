@@ -479,7 +479,7 @@ def saveLidars(dvs, filepath, output):
             ('x', np.uint16), ('y', np.uint16), ('t', np.int64), ('pol', np.bool)
         ]))
         output_file_path = os.path.join(
-            filepath, f'dvs-{output.frame}-xytp.npz')
+            filepath.replace("lidar", "dvs_camera"), f'dvs-{output.frame}.npz')
         np.savez_compressed(output_file_path, dvs_events=dvs_events)
     except Exception as error:
         print("An exception occurred while saving DVS data:", error)
