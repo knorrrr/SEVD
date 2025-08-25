@@ -5,9 +5,9 @@
             "role_name": "gnss",
             "transform": [
                 {
-                    "x": 1.0,
+                    "x": 0.18,
                     "y": 0.0,
-                    "z": 2.0,
+                    "z": 1.7,
                     "roll": 0.0,
                     "pitch": 0.0,
                     "yaw": 0.0
@@ -25,9 +25,9 @@
             "role_name": "imu",
             "transform": [
                 {
-                    "x": 1.0,
+                    "x": 0.18,
                     "y": 0.0,
-                    "z": 2.0,
+                    "z": 1.7,
                     "roll": 0.0,
                     "pitch": 0.0,
                     "yaw": 0.0
@@ -94,9 +94,9 @@
                     "yaw": 0.0
                 }
             ],
-            "fov": 70.0,
-            "image_size_x": 1280,
-            "image_size_y": 960
+            "fov": 60.4,
+            "image_size_x": 640,
+            "image_size_y": 480
         }
 
     ]
