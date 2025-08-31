@@ -446,7 +446,7 @@ def saveOnlyRgb(output, filepath):
     img = np.frombuffer(output.raw_data, dtype=np.uint8).reshape(
             (output.height, output.width, 4))
     output_file = os.path.join(
-            filepath, f'{output.frame}.png')
+            filepath, f'{output.frame:07d}.png')
     cv2.imwrite(output_file, img)
 
 def saveLidars(dvs, filepath, lidar):
@@ -454,7 +454,7 @@ def saveLidars(dvs, filepath, lidar):
     try:
         # lidar.save_to_disk(filepath + '/%05d' % lidar.frame)
         points = np.frombuffer(lidar.raw_data, dtype=np.float32).reshape(-1, 4)
-        bin_file = os.path.join(filepath, f'{lidar.frame:05d}.bin')
+        bin_file = os.path.join(filepath, f'{lidar.frame:07d}.bin')
         points.tofile(bin_file)
         with open(filepath + "/lidar_metadata.txt", 'a') as fp:
             fp.writelines(str(lidar) + ", ")
@@ -464,11 +464,10 @@ def saveLidars(dvs, filepath, lidar):
             ('x', np.uint16), ('y', np.uint16), ('t', np.int64), ('pol', np.bool)
         ]))
         output_file_path = os.path.join(
-            filepath.replace("lidar", "dvs_camera"), f'dvs-{lidar.frame}.npz')
+            filepath.replace("lidar", "dvs_camera"), f'dvs-{lidar.frame:07d}.npz')
         np.savez_compressed(output_file_path, dvs_events=dvs_events)
     except Exception as error:
         print("An exception occurred while saving lidar and DVS data:", error)
-    print("Ended Save Lidar to: ", filepath)
 
 
 def saveISImage(output, filepath):
