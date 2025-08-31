@@ -469,7 +469,10 @@ def saveOnlyRgb(output, filepath):
 
 def saveLidars(dvs, filepath, output):
     # Save the lidar data to disk
-    output.save_to_disk(filepath + '/%05d' % output.frame)
+    # Save lidar data as .bin file instead of .ply
+    points = np.frombuffer(output.raw_data, dtype=np.float32).reshape(-1, 3)
+    bin_file = os.path.join(filepath, f'{output.frame:05d}.bin')
+    points.tofile(bin_file)
     with open(filepath + "/lidar_metadata.txt", 'a') as fp:
         fp.writelines(str(output) + ", ")
         fp.writelines(str(output.transform) + "\n")
