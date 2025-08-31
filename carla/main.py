@@ -251,7 +251,7 @@ def main():
     try:
         with CarlaSyncMode(world, []) as sync_mode:
             while True:
-                frame_id = sync_mode.tick(timeout=5.0)
+                frame_id = sync_mode.tick(timeout=500.0)
                 if (k < SimulationParams.ignore_first_n_ticks):
                     k = k + 1
                     print("Ignore Count: ", k)

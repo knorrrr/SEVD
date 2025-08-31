@@ -213,9 +213,9 @@ edges = [[0, 1], [1, 3], [3, 2], [2, 0], [0, 4], [4, 5],
 def saveAllSensors(out_root_folder, sensor_datas, sensor_types, world):
     sensor_datas.pop(0)
 
-    lidar_data = {}
-    rgb_camera = {}
-    depth_camera = {}
+    # lidar_data = {}
+    # rgb_camera = {}
+    # depth_camera = {}
     futures = []
     with concurrent.futures.ThreadPoolExecutor() as executor:
         for i in range(len(sensor_datas)):
@@ -230,38 +230,20 @@ def saveAllSensors(out_root_folder, sensor_datas, sensor_types, world):
                     traceback.print_exc()
             sensor_name = sensor_types[i]
 
+            if (sensor_name.find('lidar') != -1):
+                lidar_data = sensor_data
+
             if (sensor_name.find('dvs') != -1):
                 try:
                     lidar = sensor_name.replace("dvs_camera","lidar")
-
+                    # saveLidars(sensor_data, os.path.join(out_root_folder, lidar), lidar_data)
                     future = executor.submit(saveLidars, sensor_data, os.path.join(out_root_folder, lidar), 
-                                                                       lidar_data["lidar-front"])
+                                                                       lidar_data)
                     futures.append(future)
                 except Exception as error:
                     print("An exception occurred in lidar sensor find:", error)
                     traceback.print_exc()
 
-            if (sensor_name.find('lidar') != -1):
-                lidar_data[sensor_name] = sensor_data
-
-
-            if (sensor_name.find('optical_flow') != -1):
-                optical_camera_callback(
-                    sensor_data, os.path.join(out_root_folder, sensor_name))
-
-            if (sensor_name.find('instance_segmentation_camera') != -1):
-                saveISImage(sensor_data, os.path.join(
-                    out_root_folder, sensor_name))
-                pass
-
-            if (sensor_name.find('semantic_segmentation_camera') != -1):
-                saveSegImage(sensor_data, os.path.join(
-                    out_root_folder, sensor_name))
-
-            if (sensor_name.find('depth_camera') != -1):
-                depth_camera[sensor_name] = sensor_data
-                saveDepthImage(sensor_data, os.path.join(
-                    out_root_folder, sensor_name))
 
             if (sensor_name.find('rgb_camera') != -1):
                 saveOnlyRgb(sensor_data, os.path.join(
@@ -467,136 +449,26 @@ def saveOnlyRgb(output, filepath):
             filepath, f'{output.frame}.png')
     cv2.imwrite(output_file, img)
 
-def saveLidars(dvs, filepath, output):
+def saveLidars(dvs, filepath, lidar):
     # Save the lidar data to disk
-    # Save lidar data as .bin file instead of .ply
-    points = np.frombuffer(output.raw_data, dtype=np.float32).reshape(-1, 3)
-    bin_file = os.path.join(filepath, f'{output.frame:05d}.bin')
-    points.tofile(bin_file)
-    with open(filepath + "/lidar_metadata.txt", 'a') as fp:
-        fp.writelines(str(output) + ", ")
-        fp.writelines(str(output.transform) + "\n")
-    # Save the DVS data if available
     try:
+        # lidar.save_to_disk(filepath + '/%05d' % lidar.frame)
+        points = np.frombuffer(lidar.raw_data, dtype=np.float32).reshape(-1, 4)
+        bin_file = os.path.join(filepath, f'{lidar.frame:05d}.bin')
+        points.tofile(bin_file)
+        with open(filepath + "/lidar_metadata.txt", 'a') as fp:
+            fp.writelines(str(lidar) + ", ")
+            fp.writelines(str(lidar.transform) + "\n")
+        # Save the DVS data if available
         dvs_events = np.frombuffer(dvs.raw_data, dtype=np.dtype([
             ('x', np.uint16), ('y', np.uint16), ('t', np.int64), ('pol', np.bool)
         ]))
         output_file_path = os.path.join(
-            filepath.replace("lidar", "dvs_camera"), f'dvs-{output.frame}.npz')
+            filepath.replace("lidar", "dvs_camera"), f'dvs-{lidar.frame}.npz')
         np.savez_compressed(output_file_path, dvs_events=dvs_events)
     except Exception as error:
-        print("An exception occurred while saving DVS data:", error)
-
-def saveRgbImage(output, filepath, world, sensor, ego_vehicle, dvs, depth):
-    try:
-        dvs_events = np.frombuffer(dvs.raw_data, dtype=np.dtype([
-            ('x', np.uint16), ('y', np.uint16), ('t', np.int64), ('pol', np.bool)
-        ]))
-        output_file_path = os.path.join(
-            filepath, f'dvs-{output.frame}-xytp.npz')
-        np.savez_compressed(output_file_path, dvs_events=dvs_events)
-        dvs_events2 = np.frombuffer(dvs.raw_data, dtype=np.dtype([
-            ('x', np.uint16), ('y', np.uint16), ('t', np.int64), ('pol', np.bool)]))
-        dvs_img = np.zeros((dvs.height, dvs.width, 3), dtype=np.uint8)
-        dvs_img[dvs_events2[:]['y'], dvs_events2[:]
-                ['x'], dvs_events2[:]['pol'] * 2] = 255
-        surface = pygame.surfarray.make_surface(dvs_img.swapaxes(0, 1))
-
-        array = np.frombuffer(depth.raw_data, dtype=np.dtype("uint8"))
-        array = np.reshape(array, (depth.height, depth.width, 4))
-        array = array[:, :, :3]
-        array = array.astype(np.float32)
-        normalized_depth = np.dot(array, [65536.0, 256.0, 1.0])
-        normalized_depth /= 16777215.0
-        deptharray = normalized_depth * 1000
-
-        img = np.frombuffer(output.raw_data, dtype=np.uint8).reshape(
-            (output.height, output.width, 4))
-
-        # All labels in CityObjectLabel
-        # ['Any', 'Bicycle', 'Bridge', 'Buildings', 'Bus', 'Car', 'Dynamic', 'Fences', 'Ground', 'GuardRail', 'Motorcycle', 'NONE', 'Other', 'Pedestrians', 'Poles', 'RailTrack', 'Rider', 'RoadLines', 'Roads', 'Sidewalks', 'Sky', 'Static', 'Terrain', 'TrafficLight', 'TrafficSigns', 'Train', 'Truck', 'Vegetation', 'Walls', 'Water', '__abs__', '__add__', '__and__', '__bool__', '__ceil__', '__class__', '__delattr__', '__dir__', '__divmod__', '__doc__', '__eq__', '__float__', '__floor__', '__floordiv__', '__format__', '__ge__', '__getattribute__', '__getnewargs__', '__gt__', '__hash__', '__index__', '__init__', '__init_subclass__', '__int__', '__invert__', '__le__', '__lshift__', '__lt__', '__mod__', '__module__', '__mul__', '__ne__', '__neg__', '__new__', '__or__', '__pos__', '__pow__', '__radd__', '__rand__', '__rdivmod__', '__reduce__', '__reduce_ex__', '__repr__', '__rfloordiv__', '__rlshift__', '__rmod__', '__rmul__', '__ror__', '__round__', '__rpow__', '__rrshift__', '__rshift__', '__rsub__', '__rtruediv__', '__rxor__', '__setattr__', '__sizeof__', '__slots__', '__str__', '__sub__', '__subclasshook__', '__truediv__', '__trunc__', '__xor__', 'bit_length', 'conjugate', 'denominator', 'from_bytes', 'imag', 'name', 'names', 'numerator', 'real', 'to_bytes', 'values']
-
-        dvsbb = []
-        rgbbb = []
-
-        calibration = np.identity(3)
-        calibration[0, 2] = output.width / 2.0
-        calibration[1, 2] = output.height / 2.0
-        calibration[0, 0] = calibration[1, 1] = output.width / \
-            (2.0 * np.tan(output.fov * np.pi / 360.0))
-        kitti3dbb = []
-        kitti3dbbDVS = []
-
-        for vehicle in world.get_actors().filter("*vehicle*"):
-            bounding_boxes = ClientSideBoundingBoxes.get_bounding_boxes(
-                [vehicle], sensor, output.height, output.width, output.fov)
-            for bbox in bounding_boxes:
-                points = [(int(bbox[i, 0]), int(bbox[i, 1]))
-                          for i in range(8)]
-                bounding_box = get_2d_bounding_box(
-                    np.array(points, dtype=np.int32))
-                min_x, min_y, xdiff, ydiff = bounding_box
-                isDvs = is_dvs_event_inside_bbox(
-                    dvs_events, min_x, min_y, min_x + xdiff, min_y + ydiff)
-                transform = output.transform
-                image, datapoint, camera_bbox = create_kitti_datapoint(
-                    vehicle, sensor, calibration, img, deptharray, transform, bbox)
-                if datapoint is not None:
-                    kitti3dbb.append(datapoint)
-                    rgbbb.append((vehicle.id, vehicle.attributes.get(
-                        'base_type'), (min_x, min_y, xdiff, ydiff)))
-                    if isDvs == True:
-                        kitti3dbbDVS.append(datapoint)
-                        dvsbb.append((vehicle.id, vehicle.attributes.get(
-                            'base_type'), (min_x, min_y, xdiff, ydiff)))
-
-        for vehicle in world.get_actors().filter("*pedestrian*"):
-            bounding_boxes = ClientSideBoundingBoxes.get_bounding_boxes(
-                [vehicle], sensor, output.height, output.width, output.fov)
-            for bbox in bounding_boxes:
-                points = [(int(bbox[i, 0]), int(bbox[i, 1])) for i in range(8)]
-                bounding_box = get_2d_bounding_box(
-                    np.array(points, dtype=np.int32))
-                min_x, min_y, xdiff, ydiff = bounding_box
-                transform = output.transform
-                image, datapoint, camera_bbox = create_kitti_datapoint(
-                    vehicle, sensor, calibration, img, deptharray, transform, bbox)
-                isDvs = is_dvs_event_inside_bbox(
-                    dvs_events, min_x, min_y, min_x + xdiff, min_y + ydiff)
-                if datapoint is not None:
-                    kitti3dbb.append(datapoint)
-                    rgbbb.append((vehicle.id, 'pedestrian',
-                                 (min_x, min_y, xdiff, ydiff)))
-                    if isDvs == True:
-                        kitti3dbbDVS.append(datapoint)
-                        dvsbb.append((vehicle.id, 'pedestrian',
-                                     (min_x, min_y, xdiff, ydiff)))
-
-        output_file = os.path.join(
-            filepath, f'{output.frame}.png')
-        cv2.imwrite(output_file, img)
-
-        output_file = os.path.join(filepath, f'dvs-{output.frame}.png')
-        pygame.image.save(surface, output_file)
-
-        # save_pascal_voc_format(rgbbb, os.path.join(
-        #     filepath, f'{output.frame}.xml'), f'{output.frame}.png', output.width, output.height)
-        # save_coco_format(rgbbb, os.path.join(
-        #     filepath, f'{output.frame}.json'), output.frame, f'{output.frame}.png', output.width, output.height)
-
-        # save_pascal_voc_format(dvsbb, os.path.join(
-        #     filepath, f'dvs-{output.frame}.xml'), f'dvs-{output.frame}.png', output.width, output.height)
-        # save_coco_format(dvsbb, os.path.join(
-        #     filepath, f'dvs-{output.frame}.json'), output.frame, f'dvs-{output.frame}.png', output.width, output.height)
-
-        # save_kitti_3d_format(kitti3dbb, os.path.join(
-        #     filepath, f'{output.frame}.txt'))
-        # save_kitti_3d_format(kitti3dbbDVS, os.path.join(
-        #     filepath, f'dvs-{output.frame}.txt'))
-
-    except Exception as error:
-        print("An exception occurred:", error)
-        traceback.print_exc()
+        print("An exception occurred while saving lidar and DVS data:", error)
+    print("Ended Save Lidar to: ", filepath)
 
 
 def saveISImage(output, filepath):
