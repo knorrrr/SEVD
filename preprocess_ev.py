@@ -113,7 +113,7 @@ class NPZWriter:
         self.data_list.append(data)
     def close(self):
         if not self.data_list: return
-        np.savez(self.outfile, histograms=np.stack(self.data_list, axis=0))
+        np.savez_compressed(self.outfile, histograms=np.stack(self.data_list, axis=0))
     def __enter__(self): return self
     def __exit__(self, exc_type, exc_val, exc_tb): self.close()
 def downsample_ev_repr(x, scale_factor):
@@ -143,8 +143,7 @@ def process_file(input_npz, output_npz, args, height, width):
 
 def main():
     parser = argparse.ArgumentParser(description="イベントデータを時間と極性を考慮した積層ヒストグラムに変換します。")
-    parser.add_argument('--input_dir', help='入力イベントnpzファイルのディレクトリ')
-    parser.add_argument('--output_dir', help='出力ヒストグラムnpzファイルのディレクトリ')
+    parser.add_argument('--dir', help='入力Dataset ディレクトリ（例: /path/to/dataset）')
     parser.add_argument('--height', type=int, default=480, help='イベントデータの高さ（ピクセル数）')
     parser.add_argument('--width', type=int, default=640, help='イベントデータの幅（ピクセル数）')
     parser.add_argument('--time_bins', type=int, default=10, help='時間軸の分割数。最終的なチャンネル数は 2 * time_bins となります。')
@@ -153,17 +152,29 @@ def main():
     parser.add_argument('--window_events', type=int, default=20000, help='1つのヒストグラムを生成するために使用するイベント数。')
     args = parser.parse_args()
 
-    os.makedirs(args.output_dir, exist_ok=True)
-    npz_files = sorted(glob.glob(os.path.join(args.input_dir, "*.npz")))
+    output_dir = os.path.join(args.dir, "dvs_camera-hist-front")
+    input_dir = os.path.join(args.dir, "dvs_camera-front")
+    os.makedirs(output_dir, exist_ok=True)
+    npz_files = sorted(glob.glob(os.path.join(input_dir, "*.npz")))
     print(f"{len(npz_files)} 個のファイルを処理します。")
 
-    for input_npz in npz_files:
+    import concurrent.futures
+    def process_wrapper(input_npz):
         base = os.path.basename(input_npz)
-        output_npz = os.path.join(args.output_dir, f"hist-{base}")
-        print(f"\n入力ファイル: {input_npz}")
-        print(f"出力ファイル: {output_npz}")
-        print(f"設定: 高さ={args.height}, 幅={args.width}, 時間ビン数={args.time_bins}, 極性=2 => 合計チャンネル数={2 * args.time_bins}")
+        output_npz = os.path.join(output_dir, f"hist-{base}")
+        print(f"\n[Thread] 入力ファイル: {input_npz}")
+        print(f"[Thread] 出力ファイル: {output_npz}")
+        print(f"[Thread] 設定: 高さ={args.height}, 幅={args.width}, 時間ビン数={args.time_bins}, 極性=2 => 合計チャンネル数={2 * args.time_bins}")
         process_file(input_npz, output_npz, args, args.height, args.width)
+
+    max_workers = min(8, len(npz_files)) # 並列数は最大8、またはファイル数まで
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [executor.submit(process_wrapper, input_npz) for input_npz in npz_files]
+        for future in concurrent.futures.as_completed(futures):
+            try:
+                future.result()
+            except Exception as e:
+                print(f"エラー: {e}")
 
 if __name__ == '__main__':
     main()
