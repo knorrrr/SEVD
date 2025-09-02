@@ -105,15 +105,27 @@ class NPZReader:
             p=torch.from_numpy(self.p[idx_start:idx_end].astype('int64')).to(device),
             t=torch.from_numpy(self.t[idx_start:idx_end].astype('int64')).to(device),
         )
+
 class NPZWriter:
     def __init__(self, outfile):
         self.outfile, self.data_list = outfile, []
+
     def add_data(self, data):
         if isinstance(data, torch.Tensor): data = data.cpu().numpy()
         self.data_list.append(data)
+
     def close(self):
         if not self.data_list: return
-        np.savez_compressed(self.outfile, histograms=np.stack(self.data_list, axis=0))
+        
+        if len(self.data_list) == 1:
+            # 要素が1つだけなら、そのまま保存
+            final_data = self.data_list[0]
+        else:
+            # 複数ある場合は従来通りスタックする
+            final_data = np.stack(self.data_list, axis=0)
+            
+        np.savez_compressed(self.outfile, histograms=final_data)
+
     def __enter__(self): return self
     def __exit__(self, exc_type, exc_val, exc_tb): self.close()
 def downsample_ev_repr(x, scale_factor):
@@ -124,22 +136,55 @@ def downsample_ev_repr(x, scale_factor):
 
 def process_file(input_npz, output_npz, args, height, width):
     with NPZReader(input_npz, height, width) as reader:
-        hist_generator = StackedHistogram(bins=2 * args.time_bins, height=height, width=width, count_cutoff=args.count_cutoff)
+        # ダウンサンプリングする場合、高さと幅を更新
+        if args.downsample:
+            height //= 2
+            width //= 2
+            
+        hist_generator = StackedHistogram(bins=2 * args.time_bins, height=height, width=width) # count_cutoffは後で適用
+        
         with NPZWriter(output_npz) as writer:
             ev_ts = reader.time
             total_events = len(ev_ts)
             window = args.window_events
-            print(f"合計 {total_events} イベントを処理します...")
+            
+            # --- 変更点 1: 統合ヒストグラム用の入れ物を作成 ---
+            # カウントの合計値が255を超える可能性があるので、大きなデータ型(long)で初期化
+            device = 'cuda' if torch.cuda.is_available() else 'cpu'
+            combined_hist = torch.zeros((2 * args.time_bins, height, width), dtype=torch.long, device=device)
+            # -----------------------------------------------
+
+            # print(f"合計 {total_events} イベントを処理します...")
             for idx_start in range(0, total_events, window):
                 idx_end = min(idx_start + window, total_events)
                 if idx_start >= idx_end: continue
+                
                 ev_window = reader.get_event_slice(idx_start, idx_end)
                 ev_repr = hist_generator.construct(ev_window['x'], ev_window['y'], ev_window['p'], ev_window['t'], args.time_bins)
+                
                 if args.downsample:
                     ev_repr = downsample_ev_repr(ev_repr, scale_factor=0.5)
-                writer.add_data(ev_repr)
+                
+                # --- 変更点 2: writerに都度追加するのではなく、足し合わせる ---
+                # ev_repr(uint8)をlongに変換してから加算
+                combined_hist += ev_repr.long()
+                # -------------------------------------------------------
+
                 print(f"\r進捗: {idx_end}/{total_events} ({idx_end/total_events:.1%})", end="")
-    print(f"\n処理が完了しました。ヒストグラムを {output_npz} に保存しました。")
+
+            # --- 変更点 3: ループ終了後、最終処理をしてから一度だけwriterに渡す ---
+            # count_cutoffをここで適用
+            if args.count_cutoff is not None:
+                combined_hist = torch.clamp(combined_hist, max=args.count_cutoff)
+            
+            # 最終的な型をuint8に戻す (必要に応じて変更可能)
+            # 注意: 255を超える値は255にクリップされます
+            final_hist = combined_hist.to(torch.uint8)
+            
+            writer.add_data(final_hist)
+            # -------------------------------------------------------------------
+
+    print(f"\n処理が完了しました。 {output_npz} に保存しました。")
 
 def main():
     parser = argparse.ArgumentParser(description="イベントデータを時間と極性を考慮した積層ヒストグラムに変換します。")
@@ -162,12 +207,10 @@ def main():
     def process_wrapper(input_npz):
         base = os.path.basename(input_npz)
         output_npz = os.path.join(output_dir, f"hist-{base}")
-        print(f"\n[Thread] 入力ファイル: {input_npz}")
-        print(f"[Thread] 出力ファイル: {output_npz}")
-        print(f"[Thread] 設定: 高さ={args.height}, 幅={args.width}, 時間ビン数={args.time_bins}, 極性=2 => 合計チャンネル数={2 * args.time_bins}")
+        print(f"\n[Thread] 入力ファイル: {input_npz} 高さ={args.height}, 幅={args.width}, 合計チャンネル数={2 * args.time_bins}")
         process_file(input_npz, output_npz, args, args.height, args.width)
 
-    max_workers = min(8, len(npz_files)) # 並列数は最大8、またはファイル数まで
+    max_workers = min(50, len(npz_files)) # 並列数は最大50、またはファイル数まで
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = [executor.submit(process_wrapper, input_npz) for input_npz in npz_files]
         for future in concurrent.futures.as_completed(futures):

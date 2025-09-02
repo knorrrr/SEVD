@@ -36,12 +36,15 @@ def generate_pkl(bin_dir):
 
     train_data = []
     val_data = []
+    test_data = []
 
     # 8:1の比率でシーケンシャルに分割
     for i, entry in enumerate(all_data_list):
         print(f"Processing entry {i }/{len(all_data_list)}: {entry['lidar_token']}")
         if (i % 8) == 7:
             val_data.append(entry)
+        elif (i % 8) == 6:
+            test_data.append(entry)
         else:
             train_data.append(entry)
 
@@ -60,6 +63,11 @@ def generate_pkl(bin_dir):
     with open(val_save_path, "wb") as f:
         pickle.dump(val_data, f)
     print(f"✅ 検証用データ {len(val_data)} エントリを {val_save_path} に保存しました。")
+
+    test_save_path = os.path.join(info_dir, "test_info.pkl")
+    with open(test_save_path, "wb") as f:
+        pickle.dump(test_data, f)
+    print(f"✅ テスト用データ {len(test_data)} エントリを {test_save_path} に保存しました。")
 
 
 
