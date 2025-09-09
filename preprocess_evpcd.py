@@ -10,7 +10,7 @@ def generate_pkl(bin_dir):
     all_data_list = []
 
     npz_files = sorted([f for f in os.listdir(os.path.join(bin_dir, "dvs_camera-hist-front")) if f.startswith("hist-dvs-") and f.endswith(".npz")])
-    bin_files = sorted([f for f in os.listdir(os.path.join(bin_dir, "lidar-front")) if f.endswith(".bin")])
+    bin_files = sorted([f for f in os.listdir(os.path.join(bin_dir, "lidar-front_filtered")) if f.endswith(".bin")])
     if len(bin_files) < 2:
         print("❌ Error: .binファイルが2つ以上必要です。")
         return
@@ -23,8 +23,8 @@ def generate_pkl(bin_dir):
         pred_fname = bin_files[i + 1]
         lidar_token = os.path.splitext(lidar_fname)[0]
 
-        lidar_path = os.path.join(os.path.abspath(bin_dir), "lidar-front" ,lidar_fname)
-        pred_lidar_path = os.path.join(os.path.abspath(bin_dir), "lidar-front" ,pred_fname)
+        lidar_path = os.path.join(os.path.abspath(bin_dir), "lidar-front_filtered" ,lidar_fname)
+        pred_lidar_path = os.path.join(os.path.abspath(bin_dir), "lidar-front_filtered" ,pred_fname)
         ev_path = os.path.join(os.path.abspath(bin_dir),"dvs_camera-hist-front", ev_frame)
 
         all_data_list.append({

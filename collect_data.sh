@@ -61,6 +61,7 @@ conda activate "$POINTCEPT_CONDA_ENV"
 # 各種前処理スクリプトを実行
 echo "Running preprocess_ev.py..."
 cd ../
+python3 preprocess_projection_point.py --input-dir "$EGO_DIR"
 python3 preprocess_ev.py --dir "$EGO_DIR"
 
 echo "Running preprocess_evpcd.py..."
