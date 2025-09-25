@@ -24,11 +24,13 @@ def generate_pkl(bin_dir):
         lidar_token = os.path.splitext(lidar_fname)[0]
 
         lidar_path = os.path.join(os.path.abspath(bin_dir), "lidar-front_filtered" ,lidar_fname)
+        lidar_serialized_path = os.path.join(os.path.abspath(bin_dir), "lidar-front_filtered_serialized" ,lidar_fname)
         pred_lidar_path = os.path.join(os.path.abspath(bin_dir), "lidar-front_filtered" ,pred_fname)
         ev_path = os.path.join(os.path.abspath(bin_dir),"dvs_camera-hist-front", ev_frame)
 
         all_data_list.append({
             "lidar_path": lidar_path,
+            "lidar_serialized_path": lidar_serialized_path,
             "pred_lidar_path": pred_lidar_path,
             "ev_path": ev_path, 
             "lidar_token": lidar_token
