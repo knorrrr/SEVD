@@ -20,11 +20,12 @@ def generate_pkl(bin_dir):
     for i in range(0, len(bin_files) - 1):
         ev_frame = npz_files[i + 1]
         lidar_fname = bin_files[i]
+        serialized_fname = os.path.splitext(lidar_fname)[0] + ".pt"
         pred_fname = bin_files[i + 1]
         lidar_token = os.path.splitext(lidar_fname)[0]
 
         lidar_path = os.path.join(os.path.abspath(bin_dir), "lidar-front_filtered" ,lidar_fname)
-        lidar_serialized_path = os.path.join(os.path.abspath(bin_dir), "lidar-front_filtered_serialized" ,lidar_fname)
+        lidar_serialized_path = os.path.join(os.path.abspath(bin_dir), "lidar-front_filtered_serialized" ,serialized_fname)
         pred_lidar_path = os.path.join(os.path.abspath(bin_dir), "lidar-front_filtered" ,pred_fname)
         ev_path = os.path.join(os.path.abspath(bin_dir),"dvs_camera-hist-front", ev_frame)
 
