@@ -18,7 +18,7 @@ DURATION=5
 
 # --- 出力ディレクトリの構成 ---
 NUM_TOWNS=${#MAPS[@]}
-PARENT_OUTPUT_DIR_NAME="${NUM_TOWNS}_towns_each_${DURATION}_ticks"
+PARENT_OUTPUT_DIR_NAME="${NUM_TOWNS}_towns_each_${DURATION}_ticks_$(date +%Y%m%d_%H%M%S)"
 PARENT_OUTPUT_DIR="$OUTPUT_BASE_DIR/$PARENT_OUTPUT_DIR_NAME"
 echo "Output will be saved to: $PARENT_OUTPUT_DIR"
 
@@ -109,6 +109,6 @@ python3 pcd_downsample.py "${ALL_EGO_DIRS[@]}"
 
 echo "Running preprocess_evpcd.py with all collected directories..."
 echo "${ALL_EGO_DIRS[@]}"
-python3 preprocess_evpcd.py "${ALL_EGO_DIRS[@]}"
+python3 preprocess_evpcd.py --duration $DURATION "${ALL_EGO_DIRS[@]}"
 
 echo "All tasks completed successfully."

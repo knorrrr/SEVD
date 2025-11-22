@@ -3,8 +3,15 @@ import pickle
 import sys
 import argparse
 
-def generate_pkl(bin_dirs):
+import json
+
+def generate_pkl(bin_dirs, duration):
     all_data_list = []
+    summary = {
+        "duration_ticks": duration,
+        "total_entries": 0,
+        "maps_details": []
+    }
 
     for bin_dir in bin_dirs:
         if not os.path.exists(bin_dir):
@@ -21,7 +28,8 @@ def generate_pkl(bin_dirs):
             continue
 
         # usable_len = len(bin_files) - (len(bin_files) % 2)  # 奇数なら1つ減らす
-
+        
+        entries_in_this_dir = 0
         for i in range(0, len(bin_files) - 1):
             ev_frame = npz_files[i + 1]
             lidar_fname = bin_files[i]
@@ -38,6 +46,16 @@ def generate_pkl(bin_dirs):
                 "ev_path": ev_path, 
                 "lidar_token": lidar_token
             })
+            entries_in_this_dir += 1
+
+        # Summary info for this map
+        run_dir_name = os.path.basename(os.path.dirname(bin_dir))
+        summary["maps_details"].append({
+            "map_run_id": run_dir_name,
+            "directory": bin_dir,
+            "entries_count": entries_in_this_dir
+        })
+        summary["total_entries"] += entries_in_this_dir
 
     if not all_data_list:
         print("❌ Error: No valid data found in any directory.")
@@ -94,13 +112,24 @@ def generate_pkl(bin_dirs):
         pickle.dump(test_data, f)
     print(f"✅ テスト用データ {len(test_data)} エントリを {test_save_path} に保存しました。")
 
+    # データセット概要(JSON)を保存
+    summary["split_counts"] = {
+        "train": len(train_data),
+        "val": len(val_data),
+        "test": len(test_data)
+    }
+    summary_save_path = os.path.join(info_dir, "dataset_summary.json")
+    with open(summary_save_path, "w", encoding='utf-8') as f:
+        json.dump(summary, f, indent=4, ensure_ascii=False)
+    print(f"✅ データセット概要を {summary_save_path} に保存しました。")
 
 
 # 実行エントリポイント
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Merge data from multiple directories into single pkl files.")
     parser.add_argument('data_directories', nargs='+', help='List of data directories to process')
+    parser.add_argument('--duration', type=int, default=None, help='Duration in ticks used for data collection')
     
     args = parser.parse_args()
 
-    generate_pkl(args.data_directories)
+    generate_pkl(args.data_directories, args.duration)
