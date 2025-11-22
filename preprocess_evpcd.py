@@ -1,38 +1,47 @@
 import os
 import pickle
 import sys
+import argparse
 
-def generate_pkl(bin_dir):
-    if not os.path.exists(bin_dir):
-        print(f"❌ Error: '{bin_dir}' does not exist。")
-        return
-
+def generate_pkl(bin_dirs):
     all_data_list = []
 
-    npz_files = sorted([f for f in os.listdir(os.path.join(bin_dir, "dvs_camera-hist-front")) if f.startswith("hist-dvs-") and f.endswith(".npz")])
-    bin_files = sorted([f for f in os.listdir(os.path.join(bin_dir, "lidar-front_filtered")) if f.endswith(".bin")])
-    if len(bin_files) < 2:
-        print("❌ Error: .binファイルが2つ以上必要です。")
+    for bin_dir in bin_dirs:
+        if not os.path.exists(bin_dir):
+            print(f"⚠️ Warning: '{bin_dir}' does not exist. Skipping.")
+            continue
+        
+        print(f"Processing directory: {bin_dir}")
+
+        npz_files = sorted([f for f in os.listdir(os.path.join(bin_dir, "dvs_camera-hist-front")) if f.startswith("hist-dvs-") and f.endswith(".npz")])
+        bin_files = sorted([f for f in os.listdir(os.path.join(bin_dir, "lidar-front_filtered_downsampled")) if f.endswith(".bin")])
+        
+        if len(bin_files) < 2:
+            print(f"⚠️ Warning: Not enough .bin files in {bin_dir}. Skipping.")
+            continue
+
+        # usable_len = len(bin_files) - (len(bin_files) % 2)  # 奇数なら1つ減らす
+
+        for i in range(0, len(bin_files) - 1):
+            ev_frame = npz_files[i + 1]
+            lidar_fname = bin_files[i]
+            pred_fname = bin_files[i + 1]
+            lidar_token = os.path.splitext(lidar_fname)[0]
+
+            lidar_path = os.path.join(os.path.abspath(bin_dir), "lidar-front_filtered_downsampled" ,lidar_fname)
+            pred_lidar_path = os.path.join(os.path.abspath(bin_dir), "lidar-front_filtered_downsampled" ,pred_fname)
+            ev_path = os.path.join(os.path.abspath(bin_dir),"dvs_camera-hist-front", ev_frame)
+
+            all_data_list.append({
+                "lidar_path": lidar_path,
+                "pred_lidar_path": pred_lidar_path,
+                "ev_path": ev_path, 
+                "lidar_token": lidar_token
+            })
+
+    if not all_data_list:
+        print("❌ Error: No valid data found in any directory.")
         return
-
-    # usable_len = len(bin_files) - (len(bin_files) % 2)  # 奇数なら1つ減らす
-
-    for i in range(0, len(bin_files) - 1):
-        ev_frame = npz_files[i + 1]
-        lidar_fname = bin_files[i]
-        pred_fname = bin_files[i + 1]
-        lidar_token = os.path.splitext(lidar_fname)[0]
-
-        lidar_path = os.path.join(os.path.abspath(bin_dir), "lidar-front_filtered" ,lidar_fname)
-        pred_lidar_path = os.path.join(os.path.abspath(bin_dir), "lidar-front_filtered" ,pred_fname)
-        ev_path = os.path.join(os.path.abspath(bin_dir),"dvs_camera-hist-front", ev_frame)
-
-        all_data_list.append({
-            "lidar_path": lidar_path,
-            "pred_lidar_path": pred_lidar_path,
-            "ev_path": ev_path, 
-            "lidar_token": lidar_token
-        })
 
     train_data = []
     val_data = []
@@ -40,7 +49,7 @@ def generate_pkl(bin_dir):
 
     # 8:1の比率でシーケンシャルに分割
     for i, entry in enumerate(all_data_list):
-        print(f"Processing entry {i }/{len(all_data_list)}: {entry['lidar_token']}")
+        # print(f"Processing entry {i }/{len(all_data_list)}: {entry['lidar_token']}")
         if (i % 8) == 7:
             val_data.append(entry)
         elif (i % 8) == 6:
@@ -48,9 +57,25 @@ def generate_pkl(bin_dir):
         else:
             train_data.append(entry)
 
-    parent_dir = os.path.dirname(bin_dir.rstrip("/"))
-    info_dir = os.path.join(parent_dir, "ego0")
+    # 保存先は最初のディレクトリの親ディレクトリ (ego0の親、つまり実行IDディレクトリ) に保存するか、
+    # あるいは共通の場所が良いが、ここでは最初の入力ディレクトリの親(ego0)に保存する形を維持しつつ、
+    # 複数マップの場合はどうするか... 
+    # ユーザー要望は「出力となるpklファイルは1つ」なので、最初のディレクトリの親にまとめて保存します。
+    # ただし、collect_data.shの構造上、各マップは別々の実行IDディレクトリになる可能性があるが、
+    # 今回の改修で1回のcollect_data.sh実行で複数マップ回すなら、
+    # 出力先構造: out/MapName_Date/ego0/...
+    # これらをまとめるなら、out/直下か、あるいはスクリプト実行時のカレントディレクトリなどが無難だが、
+    # 既存の流儀に従い、最初の入力ディレクトリの親(ego0)に保存する。
+    
+    first_bin_dir = bin_dirs[0]
+    # first_bin_dir is like .../x_towns_eachxxx/TownXX.../ego0
+    # We want to save pkls in .../x_towns_eachxxx
+    town_dir = os.path.dirname(first_bin_dir.rstrip("/"))
+    info_dir = os.path.dirname(town_dir)
+    
     os.makedirs(info_dir, exist_ok=True)
+
+    print(f"Saving combined pkl files to: {info_dir}")
 
     # train_info.pklを保存
     train_save_path = os.path.join(info_dir, "train_info.pkl")
@@ -73,9 +98,9 @@ def generate_pkl(bin_dir):
 
 # 実行エントリポイント
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: python preprocess_evpcd.py <data_directory>")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(description="Merge data from multiple directories into single pkl files.")
+    parser.add_argument('data_directories', nargs='+', help='List of data directories to process')
+    
+    args = parser.parse_args()
 
-    bin_dir = sys.argv[1]
-    generate_pkl(bin_dir)
+    generate_pkl(args.data_directories)

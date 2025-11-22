@@ -184,14 +184,14 @@ def process_file(input_npz, output_npz, args, height, width):
             writer.add_data(final_hist)
             # -------------------------------------------------------------------
 
-    print(f"\n処理が完了しました。 {output_npz} に保存しました。")
+    # print(f"\n処理が完了しました。 {output_npz} に保存しました。")
 
 def main():
     parser = argparse.ArgumentParser(description="イベントデータを時間と極性を考慮した積層ヒストグラムに変換します。")
     parser.add_argument('--dir', help='入力Dataset ディレクトリ（例: /path/to/dataset）')
     parser.add_argument('--height', type=int, default=480, help='イベントデータの高さ（ピクセル数）')
     parser.add_argument('--width', type=int, default=640, help='イベントデータの幅（ピクセル数）')
-    parser.add_argument('--time_bins', type=int, default=10, help='時間軸の分割数。最終的なチャンネル数は 2 * time_bins となります。')
+    parser.add_argument('--time_bins', type=int, default=4, help='時間軸の分割数。最終的なチャンネル数は 2 * time_bins となります。')
     parser.add_argument('--count_cutoff', type=int, default=None, help='ヒストグラムの各ピクセルの最大カウント値。')
     parser.add_argument('--downsample', action='store_true', help='有効にすると、生成されたヒストグラムを2分の1にダウンサンプリングします。')
     parser.add_argument('--window_events', type=int, default=20000, help='1つのヒストグラムを生成するために使用するイベント数。')
@@ -207,10 +207,11 @@ def main():
     def process_wrapper(input_npz):
         base = os.path.basename(input_npz)
         output_npz = os.path.join(output_dir, f"hist-{base}")
-        print(f"\n[Thread] 入力ファイル: {input_npz} 高さ={args.height}, 幅={args.width}, 合計チャンネル数={2 * args.time_bins}")
+        # print(f"\n[Thread] 入力ファイル: {input_npz} 高さ={args.height}, 幅={args.width}, 合計チャンネル数={2 * args.time_bins}")
         process_file(input_npz, output_npz, args, args.height, args.width)
 
     max_workers = min(50, len(npz_files)) # 並列数は最大50、またはファイル数まで
+    print(f"並列数: {max_workers}, 全ファイル数: {len(npz_files)}, サイズ{args.height}x{args.width}, 合計チャンネル数={2 * args.time_bins}")
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = [executor.submit(process_wrapper, input_npz) for input_npz in npz_files]
         for future in concurrent.futures.as_completed(futures):
