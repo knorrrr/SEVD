@@ -304,58 +304,27 @@ def createOutputDirectories(data):
     # output_sensor_folders = [ data['sensors'][i]['type'] for i in range(len(data['sensors'])) ]
     output_sensor_folders = [data['sensors'][i]['role_name']
                              for i in range(len(data['sensors']))]
-    try:
-        os.mkdir("out/")
-    except OSError:
-        pass
-        # print("Folder " + "out/" + " already exists!")
-    try:
-        os.mkdir(SimulationParams.data_output_subfolder)
-    except OSError:
-        pass
-        # print("Folder " + SimulationParams.data_output_subfolder + " already exists!")
+    os.makedirs("out/", exist_ok=True)
+    os.makedirs(SimulationParams.data_output_subfolder, exist_ok=True)
 
     for i in range(SimulationParams.number_of_ego_vehicles):
         ego_name = "ego" + str(i) + "/"
         ego_folder = os.path.join(
             SimulationParams.data_output_subfolder, ego_name)
-        try:
-            os.mkdir(ego_folder)
-        except:
-            pass
-            # print("Ego folder " + ego_folder + " already exists!")
+        os.makedirs(ego_folder, exist_ok=True)
         for sensor in output_sensor_folders:
-            try:
-                os.mkdir(os.path.join(ego_folder, sensor))
-            except OSError:
-                pass
-                # print("Creation of " + os.path.join(ego_folder, sensor) + " failed")
+            os.makedirs(os.path.join(ego_folder, sensor), exist_ok=True)
 
 def createOutputDirectoriesFixedPerception(data, id):
     # output_sensor_folders = [ data['sensors'][i]['type'] for i in range(len(data['sensors'])) ]
     output_sensor_folders = [data['sensors'][i]['role_name']
                              for i in range(len(data['sensors']))]
-    try:
-        os.mkdir("out/")
-    except OSError:
-        pass
-        # print("Folder " + "out/" + " already exists!")
-    try:
-        os.mkdir(SimulationParams.data_output_subfolder)
-    except OSError:
-        pass
-        # print("Folder " + SimulationParams.data_output_subfolder + " already exists!")
+    os.makedirs("out/", exist_ok=True)
+    os.makedirs(SimulationParams.data_output_subfolder, exist_ok=True)
 
     fixed_name = "fixed-" + str(id) + "/"
     fixed_folder = os.path.join(
         SimulationParams.data_output_subfolder, fixed_name)
-    try:
-        os.mkdir(fixed_folder)
-    except:
-        pass
-            # print("Ego folder " + fixed_folder + " already exists!")
+    os.makedirs(fixed_folder, exist_ok=True)
     for sensor in output_sensor_folders:
-        try:
-            os.mkdir(os.path.join(fixed_folder, sensor))
-        except OSError:
-            pass
+        os.makedirs(os.path.join(fixed_folder, sensor), exist_ok=True)

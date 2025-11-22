@@ -68,8 +68,8 @@ def filter_lidar_by_projection(lidar_path, image_path, output_bin_path, lidar_to
     # 結果を.binファイルとして保存
     filtered_p_cloud.astype(np.float32).tofile(str(output_bin_path))
 
-    print(f"-> 元の点群数: {len(p_cloud)} -> フィルタ後: {len(filtered_p_cloud)}")
-    print(f"   保存しました: {output_bin_path}")
+    # print(f"-> 元の点群数: {len(p_cld)} -> フィルタ後: {len(filtered_p_cloud)}")
+    # print(f"   保存しました: {output_bin_path}")
 
 
 def main(args):
@@ -121,6 +121,7 @@ def main(args):
         return
 
     # ファイルをループして処理
+    print(f"Process Directory: {lidar_dir}")
     for lidar_path in tqdm(lidar_files, desc="ファイルを処理中"):
         basename = lidar_path.stem
         image_path = image_dir / (basename + '.png')
