@@ -11,8 +11,9 @@ POINTCEPT_CONDA_ENV="pointcept-torch2.5.0-cu12.8"
 OUTPUT_BASE_DIR="$SEVD_DIR/carla/out" # CARLAの出力先ベースディレクトリ
 
 # --- 1. マップリストの定義 ---
-# MAPS=("Town01_Opt" "Town02_Opt" "Town03_Opt" "Town04_Opt" "Town05_Opt" "Town06" "Town07" "Town10HD_Opt" "Town11" "Town12" "Town13" "Town15")
-MAPS=("Town01_Opt" "Town02_Opt")
+# MAPS=("Town01_Opt" "Town02_Opt" "Town03" "Town04_Opt" "Town05_Opt" "Town06" "Town07" "Town10HD_Opt" "Town12" "Town13" "Town15")
+# MAPS=("Town01_Opt" "Town02_Opt")
+MAPS=("Town12" "Town13")
 ALL_EGO_DIRS=()
 DURATION=5
 
@@ -22,53 +23,129 @@ PARENT_OUTPUT_DIR_NAME="${NUM_TOWNS}_towns_each_${DURATION}_ticks_$(date +%Y%m%d
 PARENT_OUTPUT_DIR="$OUTPUT_BASE_DIR/$PARENT_OUTPUT_DIR_NAME"
 echo "Output will be saved to: $PARENT_OUTPUT_DIR"
 
-# --- 既存のCARLAプロセスを終了 ---
-echo "Checking for existing CARLA processes..."
-if pgrep -f "CarlaUE4" > /dev/null; then
-    echo "Found running CARLA process. Killing it..."
-    pkill -f "CarlaUE4"
-    sleep 5 # プロセスが完全に終了するのを待つ
-    echo "CARLA process killed."
-else
-    echo "No existing CARLA process found."
-fi
-
-echo "--- Starting CARLA Simulation for $MAP_NAME ---"
-eval cd "$CARLA_UE4_DIR"
-./CarlaUE4.sh &
-CARLA_PID=$!
-echo "CARLA simulator started with PID: $CARLA_PID"
-echo "Waiting 15 seconds for CARLA to initialize..."
-sleep 20
 # --- 2. 各マップでのデータ収集と個別前処理 ---
 for MAP_NAME in "${MAPS[@]}"; do
+    echo " "
     echo "=================================================="
     echo "Processing Map: $MAP_NAME"
     echo "=================================================="
-    # --- CARLAシミュレーションの実行 ---
-    cd "$SEVD_DIR/carla"
-    source "$(conda info --base)/etc/profile.d/conda.sh"
-    conda activate "$CARLA_CONDA_ENV"
 
-    echo "Running data generation script (main.py) for $MAP_NAME..."
-    python main.py \
-        --map="$MAP_NAME" \
-        --number-of-ego-vehicles=1 \
-        -n=120 \
-        -w=70 \
-        --sync \
-        --delta-seconds=0.1 \
-        --timeout=60 \
-        --ignore-first-n-ticks=1 \
-        --duration=$DURATION \
-        --output-dir="$PARENT_OUTPUT_DIR" \
-        --start-weather=ClearNoon \
-        --end-weather=ClearNight || true
-        # --ignore-first-n-ticks=35 \
-
-    echo "Data generation finished for $MAP_NAME."
-
+    MAX_RETRIES=5
+    RETRY_COUNT=0
+    SUCCESS=false
     
+    while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+        echo "Attempt $((RETRY_COUNT+1)) of $MAX_RETRIES for $MAP_NAME"
+
+        # --- 既存のCARLAプロセスと関連ポートのクリーンアップ ---
+        echo "Cleaning up processes..."
+        
+        # Kill CarlaUE4
+        if pgrep -f "CarlaUE4" > /dev/null; then
+            echo "Found running CARLA process. Killing it..."
+            pkill -9 -f "CarlaUE4"
+        fi
+
+        # Kill processes on ports 2000-2002 (CARLA) and 8000 (Traffic Manager)
+        echo "Killing processes on ports 2000-2002 and 8000..."
+        fuser -k -9 2000/tcp >/dev/null 2>&1 || true
+        fuser -k -9 2001/tcp >/dev/null 2>&1 || true
+        fuser -k -9 2002/tcp >/dev/null 2>&1 || true
+        fuser -k -9 8000/tcp >/dev/null 2>&1 || true
+        
+        sleep 5
+
+        # --- CARLAシミュレーションの起動 ---
+        echo "=================================================="
+        echo "Starting CARLA Simulation..."
+        echo "=================================================="
+        eval cd "$CARLA_UE4_DIR"
+        ./CarlaUE4.sh -RenderOffScreen &
+        CARLA_PID=$!
+        echo "CARLA simulator started with PID: $CARLA_PID"
+        echo "Waiting 20 seconds for CARLA to initialize..."
+        sleep 20
+        
+        # Check if CARLA is still running
+        if ! kill -0 $CARLA_PID 2>/dev/null; then
+            echo "Error: CARLA simulator crashed during initialization (PID: $CARLA_PID)."
+            echo "Retrying..."
+            RETRY_COUNT=$((RETRY_COUNT+1))
+            continue
+        fi
+        
+        # --- CARLAシミュレーションの実行 ---
+        cd "$SEVD_DIR/carla"
+        source "$(conda info --base)/etc/profile.d/conda.sh"
+        conda activate "$CARLA_CONDA_ENV"
+
+        echo "=================================================="
+        echo "Running data generation script (main.py) for $MAP_NAME..."
+        echo "=================================================="
+        
+        # set +e を使ってエラーでもスクリプトが止まらないようにする
+        set +e
+        python main.py \
+            --map="$MAP_NAME" \
+            --number-of-ego-vehicles=1 \
+            -n=120 \
+            -w=70 \
+            --sync \
+            --delta-seconds=0.1 \
+            --timeout=60 \
+            --ignore-first-n-ticks=1 \
+            --duration=$DURATION \
+            --output-dir="$PARENT_OUTPUT_DIR" \
+            --start-weather=ClearNoon \
+            --end-weather=ClearNight
+        
+        EXIT_CODE=$?
+        set -e
+
+        # 最新の出力ディレクトリを取得 (main.pyが作成したもの)
+        LATEST_RUN_DIR=$(find "$PARENT_OUTPUT_DIR" -mindepth 1 -maxdepth 1 -type d -name "${MAP_NAME}_*" -printf '%T@ %p\n' | sort -nr | head -1 | cut -d' ' -f2-)
+        
+        DATA_GENERATED=false
+        if [ -n "$LATEST_RUN_DIR" ]; then
+             # metadataファイルが存在し、かつLiDARデータ(.bin)が生成されているか確認
+             if ls "$LATEST_RUN_DIR"/metadata-*.json 1> /dev/null 2>&1; then
+                 if [ -d "$LATEST_RUN_DIR/ego0/lidar-front" ] && find "$LATEST_RUN_DIR/ego0/lidar-front" -name "*.bin" | grep -q .; then
+                     DATA_GENERATED=true
+                 fi
+             fi
+        fi
+
+        # 0 (正常終了) または 134 (SIGABRT/Crash on exit) かつ、データが生成されている場合を成功とみなす
+        if { [ $EXIT_CODE -eq 0 ] || [ $EXIT_CODE -eq 134 ]; } && [ "$DATA_GENERATED" = true ]; then
+            if [ $EXIT_CODE -eq 0 ]; then
+                echo "Data generation finished successfully for $MAP_NAME."
+            else
+                echo "Data generation finished with exit code $EXIT_CODE, and data was generated. Treating as success for $MAP_NAME."
+            fi
+            SUCCESS=true
+            
+            # 成功したらCARLAを終了してループを抜ける
+            echo "Shutting down CARLA simulator (PID: $CARLA_PID)..."
+            kill $CARLA_PID 2>/dev/null || true
+            break
+        else
+            if [ "$DATA_GENERATED" = false ]; then
+                echo "Error: main.py exited with code $EXIT_CODE but NO valid data (metadata/lidar) was generated."
+            else
+                echo "Error: main.py failed with exit code $EXIT_CODE."
+            fi
+            echo "Shutting down CARLA simulator (PID: $CARLA_PID) and retrying..."
+            kill $CARLA_PID 2>/dev/null || true
+            RETRY_COUNT=$((RETRY_COUNT+1))
+            sleep 5
+        fi
+    done
+
+    if [ "$SUCCESS" = false ]; then
+        echo "Error: Failed to process $MAP_NAME after $MAX_RETRIES attempts. Skipping..."
+        continue
+    fi
+
     # --- 後処理の準備 ---
     echo "Finding the latest output directory for $MAP_NAME..."
     # 最新の出力ディレクトリを自動で検索して取得
@@ -87,16 +164,13 @@ for MAP_NAME in "${MAPS[@]}"; do
     echo "Activating conda environment: $POINTCEPT_CONDA_ENV"
     conda activate "$POINTCEPT_CONDA_ENV"
 
+    echo "=================================================="
     echo "Running preprocess_ev.py..."
+    echo "=================================================="
     cd "$SEVD_DIR" # 元のディレクトリに戻る (念のため)
     python3 preprocess_projection_point.py --input-dir "$EGO_DIR"
     python3 preprocess_ev.py --dir "$EGO_DIR"
-
 done
-
-# --- CARLAシミュレータの終了 ---
-echo "Shutting down CARLA simulator (PID: $CARLA_PID)..."
-kill $CARLA_PID
 
 # --- 3. 統合後処理の実行 ---
 echo -e "\n--- Starting Aggregated Post-Processing ---"
@@ -104,10 +178,14 @@ if [ ${#ALL_EGO_DIRS[@]} -eq 0 ]; then
     echo "Error: No data collected from any map."
     exit 1
 fi
+echo "=================================================="
 echo "Running pcd_downsample.py with all collected directories..."
+echo "=================================================="
 python3 pcd_downsample.py "${ALL_EGO_DIRS[@]}"
 
+echo "=================================================="
 echo "Running preprocess_evpcd.py with all collected directories..."
+echo "=================================================="
 echo "${ALL_EGO_DIRS[@]}"
 python3 preprocess_evpcd.py --duration $DURATION "${ALL_EGO_DIRS[@]}"
 

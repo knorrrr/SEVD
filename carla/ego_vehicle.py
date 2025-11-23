@@ -43,7 +43,7 @@ class EgoVehicle:
         # self.ego = world.spawn_actor(self.ego_bp, findClosestSpawnPoint(
         #     spawn_points=vehicles_spawn_points, target=position))
 
-        self.sensors_ref, self.sensor_types, self.sensor_names = attachSensorsToVehicle(
+        self.sensors_ref, self.sensor_types, self.sensor_names, self.sensor_infos = attachSensorsToVehicle(
             world, data, self.ego)  # attachSensorsToVehicle should be a member function
 
         self.queues = []

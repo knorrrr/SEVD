@@ -36,6 +36,7 @@ from ego_vehicle import EgoVehicle
 from fixed_perception import FixedPerception
 from utils.arg_parser import CommandLineArgsParser
 from utils.weather import weather_presets
+from tqdm import tqdm
 
 
 def main():
@@ -226,8 +227,14 @@ def main():
         "participant_density": participant_density,
         "delta_seconds": SimulationParams.delta_seconds,
         "egos": len(egos),
-        "fixed-views": len(fixed)
+        "fixed-views": len(fixed),
+        "ego_details": []
     }
+
+    for ego in egos:
+        metadata["ego_details"].append({
+            "sensors": ego.sensor_infos
+        })
 
     for name, value in weather_presets:
         if name == start_weather:
@@ -252,17 +259,21 @@ def main():
         file.write(json_string)
     try:
         with CarlaSyncMode(world, []) as sync_mode:
+            # Initialize tqdm with total frames (duration + 1 because it runs from 0 to duration inclusive)
+            pbar = tqdm(total=duration + 1, unit="frame", desc="Initializing")
+            
             while True:
                 frame_id = sync_mode.tick(timeout=500.0)
                 if (k < SimulationParams.ignore_first_n_ticks):
                     k = k + 1
-                    print("Ignore Count: ", k)
+                    pbar.set_description(f"Warming up {k}/{SimulationParams.ignore_first_n_ticks}")
                     continue
 
                 if step > duration:
                     break
 
-                print("Frame: ", step)
+                pbar.set_description(f"Simulating")
+                pbar.update(1)
                 step = step + 1
 
                 with concurrent.futures.ThreadPoolExecutor() as executor:

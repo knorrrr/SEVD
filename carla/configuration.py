@@ -53,6 +53,7 @@ def attachSensorsToVehicle(world, data, vehicle_actor):
     sensor_references = []
     sensor_types = []
     sensor_names = []
+    sensor_infos = []
     for i in range(len(data['sensors'])):
         sensor = data['sensors'][i]
         bp = blueprint_library.find(sensor['type'])
@@ -85,29 +86,24 @@ def attachSensorsToVehicle(world, data, vehicle_actor):
         sensor_types.append(sensor['type'])
         sensor_names.append(sensor['role_name'])
         sensor_references.append(sensor_actor)
+        
+        sensor_info = {
+            "type": sensor["type"],
+            "role_name": sensor["role_name"]
+        }
 
-        # PRINT CALIBRATION MATRICES
+        # COLLECT CALIBRATION MATRICES
         if sensor["type"] == "sensor.lidar.ray_cast":
             lidar_2_world = sensor_actor.get_transform().get_matrix()
-            print("LIDAR INFO")
-            print("=================================================")
-            print(
-                "TRANSFORM the points from lidar space to world space = ", lidar_2_world)
-            print("=================================================")
+            sensor_info["lidar_2_world"] = lidar_2_world
 
         if sensor["type"] == "sensor.other.gnss":
             gnss_2_world = sensor_actor.get_transform().get_matrix()
-            print("GNSS INFO")
-            print("=================================================")
-            print("TRANSFORM the points from gnss space to world space = ", gnss_2_world)
-            print("=================================================")
+            sensor_info["gnss_2_world"] = gnss_2_world
 
         if sensor["type"] == "sensor.other.imu":
             imu_2_world = sensor_actor.get_transform().get_matrix()
-            print("IMU INFO")
-            print("=================================================")
-            print("TRANSFORM the points from imu space to world space = ", imu_2_world)
-            print("=================================================")
+            sensor_info["imu_2_world"] = imu_2_world
 
         if sensor["type"] == "sensor.camera.rgb":
             # Build the K projection matrix:
@@ -129,18 +125,17 @@ def attachSensorsToVehicle(world, data, vehicle_actor):
             K[0, 0] = K[1, 1] = focal
             K[0, 2] = image_w / 2.0
             K[1, 2] = image_h / 2.0
+            
+            sensor_info["image_w"] = image_w
+            sensor_info["image_h"] = image_h
+            sensor_info["fov"] = fov
+            sensor_info["focal"] = focal
+            sensor_info["world_2_camera"] = world_2_camera.tolist()
+            sensor_info["K"] = K.tolist()
+            
+        sensor_infos.append(sensor_info)
 
-            print("CAMERA INFO")
-            print("=================================================")
-            print("image_w = ", image_w)
-            print("image_h = ", image_h)
-            print("fov = ", fov)
-            print("focal = ", focal)
-            print("TRANSFORM from world to sensor coordinates = ", world_2_camera)
-            print("PROJECT from sensor to pixel coordinates = ", K)
-            print("=================================================")
-
-    return sensor_references, sensor_types, sensor_names
+    return sensor_references, sensor_types, sensor_names, sensor_infos
 
 
 def attachSensorsForFixedPerception(world, data, coordinate):
