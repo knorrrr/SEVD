@@ -43,14 +43,15 @@ def main():
 
     args_parser = CommandLineArgsParser()
     args = args_parser.parse_args()
-    print(args)
+    # print(args)
 
     # Create CARLA client
     client = carla.Client(args.host, args.port)
     if "Town12" in args.map or "Town13" in args.map:
-        print(f"Increasing client timeout for Large Map: {args.map}")
-        client.set_timeout(30.0)
+        print(f"Increasing client timeout for Large Map: {args.map}, timeout:180.0")
+        client.set_timeout(180.0)
     else:
+        print(f"Setting client timeout to: {args.timeout}")
         client.set_timeout(args.timeout)
 
     # Setup simulation parameters

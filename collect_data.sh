@@ -11,12 +11,17 @@ POINTCEPT_CONDA_ENV="pointcept-torch2.5.0-cu12.8"
 OUTPUT_BASE_DIR="$SEVD_DIR/carla/out" # CARLAの出力先ベースディレクトリ
 
 # --- 1. マップリストの定義 ---
-# MAPS=("Town01_Opt" "Town02_Opt" "Town03" "Town04_Opt" "Town05_Opt" "Town06" "Town07" "Town10HD_Opt" "Town12" "Town13" "Town15")
-# MAPS=("Town01_Opt" "Town02_Opt")
-MAPS=("Town12" "Town13")
+# 11 Maps
+MAPS=("Town01_Opt" "Town02_Opt" "Town03" "Town04_Opt" "Town05_Opt" "Town06" "Town07" "Town10HD_Opt" "Town12" "Town13" "Town15")
+# Large
+# MAPS=("Town12" "Town13")
 ALL_EGO_DIRS=()
-DURATION=5
+ALL_DURATIONS=()
+# DURATION=6000
+# LARGE_MAP_DURATION=12000 # Duration for Town12 and Town13
 
+DURATION=6000
+LARGE_MAP_DURATION=12000 # Duration for Town12 and Town13
 # --- 出力ディレクトリの構成 ---
 NUM_TOWNS=${#MAPS[@]}
 PARENT_OUTPUT_DIR_NAME="${NUM_TOWNS}_towns_each_${DURATION}_ticks_$(date +%Y%m%d_%H%M%S)"
@@ -29,6 +34,15 @@ for MAP_NAME in "${MAPS[@]}"; do
     echo "=================================================="
     echo "Processing Map: $MAP_NAME"
     echo "=================================================="
+
+    # Determine duration for this map
+    if [[ "$MAP_NAME" == *"Town12"* ]] || [[ "$MAP_NAME" == *"Town13"* ]]; then
+        CURRENT_DURATION=$LARGE_MAP_DURATION
+        echo "Using Large Map Duration: $CURRENT_DURATION"
+    else
+        CURRENT_DURATION=$DURATION
+        echo "Using Standard Duration: $CURRENT_DURATION"
+    fi
 
     MAX_RETRIES=5
     RETRY_COUNT=0
@@ -63,8 +77,14 @@ for MAP_NAME in "${MAPS[@]}"; do
         ./CarlaUE4.sh -RenderOffScreen &
         CARLA_PID=$!
         echo "CARLA simulator started with PID: $CARLA_PID"
-        echo "Waiting 20 seconds for CARLA to initialize..."
-        sleep 20
+        if [[ "$MAP_NAME" == *"Town13"* ]]; then
+            CARLA_INIT_WAIT=60
+        else
+            CARLA_INIT_WAIT=20
+        fi
+        echo "Waiting $CARLA_INIT_WAIT seconds for CARLA to initialize..."
+        sleep $CARLA_INIT_WAIT
+
         
         # Check if CARLA is still running
         if ! kill -0 $CARLA_PID 2>/dev/null; then
@@ -84,6 +104,7 @@ for MAP_NAME in "${MAPS[@]}"; do
         echo "=================================================="
         
         # set +e を使ってエラーでもスクリプトが止まらないようにする
+        # Duration is frame ticks
         set +e
         python main.py \
             --map="$MAP_NAME" \
@@ -92,9 +113,9 @@ for MAP_NAME in "${MAPS[@]}"; do
             -w=70 \
             --sync \
             --delta-seconds=0.1 \
-            --timeout=60 \
-            --ignore-first-n-ticks=1 \
-            --duration=$DURATION \
+            --timeout=120 \
+            --ignore-first-n-ticks=0 \
+            --duration=$CURRENT_DURATION \
             --output-dir="$PARENT_OUTPUT_DIR" \
             --start-weather=ClearNoon \
             --end-weather=ClearNight
@@ -131,8 +152,25 @@ for MAP_NAME in "${MAPS[@]}"; do
         else
             if [ "$DATA_GENERATED" = false ]; then
                 echo "Error: main.py exited with code $EXIT_CODE but NO valid data (metadata/lidar) was generated."
+                # Remove the failed directory to keep output clean
+                if [ -n "$LATEST_RUN_DIR" ] && [ -d "$LATEST_RUN_DIR" ]; then
+                    echo "Removing failed output directory: $LATEST_RUN_DIR"
+                    rm -rf "$LATEST_RUN_DIR"
+                fi
             else
                 echo "Error: main.py failed with exit code $EXIT_CODE."
+                # If data was generated but exit code is bad, we might want to keep it or delete it.
+                # Usually if exit code is bad, we assume failure. But logic above says if data generated, we treat as success?
+                # Ah, line 108 handles success. This else block is for FAILURE.
+                # So if we are here, it means either (ExitCode != 0 AND != 134) OR (DataGenerated == false).
+                
+                # If DataGenerated is true but ExitCode is bad (and not 134), we probably should keep it for inspection or delete it?
+                # User asked to delete "failed works".
+                # Let's delete it if we are retrying.
+                if [ -n "$LATEST_RUN_DIR" ] && [ -d "$LATEST_RUN_DIR" ]; then
+                    echo "Removing failed output directory (bad exit code): $LATEST_RUN_DIR"
+                    rm -rf "$LATEST_RUN_DIR"
+                fi
             fi
             echo "Shutting down CARLA simulator (PID: $CARLA_PID) and retrying..."
             kill $CARLA_PID 2>/dev/null || true
@@ -170,6 +208,9 @@ for MAP_NAME in "${MAPS[@]}"; do
     cd "$SEVD_DIR" # 元のディレクトリに戻る (念のため)
     python3 preprocess_projection_point.py --input-dir "$EGO_DIR"
     python3 preprocess_ev.py --dir "$EGO_DIR"
+    
+    # Store duration for this run
+    ALL_DURATIONS+=("$CURRENT_DURATION")
 done
 
 # --- 3. 統合後処理の実行 ---
@@ -186,7 +227,8 @@ python3 pcd_downsample.py "${ALL_EGO_DIRS[@]}"
 echo "=================================================="
 echo "Running preprocess_evpcd.py with all collected directories..."
 echo "=================================================="
-echo "${ALL_EGO_DIRS[@]}"
-python3 preprocess_evpcd.py --duration $DURATION "${ALL_EGO_DIRS[@]}"
+echo "Directories: ${ALL_EGO_DIRS[@]}"
+echo "Durations: ${ALL_DURATIONS[@]}"
+python3 preprocess_evpcd.py "${ALL_EGO_DIRS[@]}" --durations "${ALL_DURATIONS[@]}"
 
 echo "All tasks completed successfully."
