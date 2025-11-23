@@ -35,7 +35,13 @@ class EgoVehicle:
         self.ego_bp = random.choice(
             blueprint_library.filter('vehicle.citroen.*'))
         print("************** ", self.ego_bp)
-        self.ego_bp.set_attribute('role_name', 'ego')
+        
+        # For Large Maps (Town12, Town13), we must set role_name='hero' to enable tile streaming.
+        map_name = world.get_map().name
+        if "Town12" in map_name or "Town13" in map_name:
+            self.ego_bp.set_attribute('role_name', 'hero')
+        else:
+            self.ego_bp.set_attribute('role_name', 'ego')
         random_spawn_point = random.choice(vehicles_spawn_points)
         self.ego = world.spawn_actor(self.ego_bp, random_spawn_point)
 

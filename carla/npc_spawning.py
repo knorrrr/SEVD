@@ -46,22 +46,38 @@ def spawnVehicles(client, world, spawn_points, blueprintsVehicles, number):
                 batch.append(carla.command.SpawnActor(vehicle_bp, spawn_point).then(
                     carla.command.SetAutopilot(carla.command.FutureActor, True)))
 
+    print(f"Applying batch of {len(batch)} spawn commands...")
     results = client.apply_batch_sync(batch, True)
+    print("Batch applied. Processing results...")
 
     all_id = [results[i].actor_id for i in range(len(results))]
     all_actors = world.get_actors(all_id)
+    print(f"Retrieved {len(all_actors)} actors from world.")
     return all_actors, all_id
 
 
-def spawnWalkers(client, world, blueprintsWalkers, number):
+def spawnWalkers(client, world, blueprintsWalkers, number, hero_location=None):
     print("Spawning walkers...")
     # 1. Take all the random locations to spawn
     spawn_points = []
-    for i in range(number):
+    
+    max_attempts = number * 10
+    attempts = 0
+    
+    while len(spawn_points) < number and attempts < max_attempts:
+        attempts += 1
         spawn_point = carla.Transform()
         spawn_point.location = world.get_random_location_from_navigation()
-        if (spawn_point.location != None):
-            spawn_points.append(spawn_point)
+        
+        if spawn_point.location is not None:
+            if hero_location is not None:
+                if spawn_point.location.distance(hero_location) < 2000.0:
+                    spawn_points.append(spawn_point)
+            else:
+                spawn_points.append(spawn_point)
+                
+    if len(spawn_points) < number:
+        print(f"Warning: Could only find {len(spawn_points)} valid walker spawn points out of requested {number}.")
 
     # 2. Build the batch of commands to spawn the pedestrians
     batch = []

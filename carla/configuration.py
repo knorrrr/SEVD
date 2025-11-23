@@ -259,7 +259,7 @@ class CarlaSyncMode(object):
     def __exit__(self, *args, **kwargs):
         print("Got exit function!")
 
-        self.world.apply_settings(self._settings)
+        # self.world.apply_settings(self._settings)
         return
 
     def _retrieve_data(self, sensor_queue, timeout):

@@ -47,7 +47,11 @@ def main():
 
     # Create CARLA client
     client = carla.Client(args.host, args.port)
-    client.set_timeout(args.timeout)
+    if "Town12" in args.map or "Town13" in args.map:
+        print(f"Increasing client timeout for Large Map: {args.map}")
+        client.set_timeout(30.0)
+    else:
+        client.set_timeout(args.timeout)
 
     # Setup simulation parameters
     SimulationParams.town_map = args.map
@@ -98,6 +102,14 @@ def main():
 
     # Setup
     setupWorld(world)
+
+    # Large Map Handling: Configure tile streaming
+    if "Town12" in SimulationParams.town_map or "Town13" in SimulationParams.town_map:
+        print(f"Configuring settings for Large Map: {SimulationParams.town_map}")
+        settings = world.get_settings()
+        settings.tile_stream_distance = 3000.0
+        settings.actor_active_distance = 3000.0
+        world.apply_settings(settings)
     setupTrafficManager(client)
 
     # Get all required blueprints
@@ -118,13 +130,14 @@ def main():
         'pedestrian': 0
     }
 
-    w_all_actors, w_all_id = spawnWalkers(
-        client, world, blueprintsWalkers, SimulationParams.num_of_walkers)
-    for actor in w_all_actors:
-        actor_type = actor.attributes['role_name']
-        if actor_type == "pedestrian":
-            participant_density["pedestrian"] += 1
-    world.tick()
+    # Walker spawning moved to after Ego spawning to allow for location filtering
+    # w_all_actors, w_all_id = spawnWalkers(
+    #     client, world, blueprintsWalkers, SimulationParams.num_of_walkers)
+    # for actor in w_all_actors:
+    #     actor_type = actor.attributes['role_name']
+    #     if actor_type == "pedestrian":
+    #         participant_density["pedestrian"] += 1
+    # world.tick()
 
     egos = []
     fixed = []
@@ -144,15 +157,49 @@ def main():
         egos.append(EgoVehicle(
             SimulationParams.sensor_json_filepath, None, world, args))
 
+    # For Large Maps, filter spawn points to be near the hero to avoid spawning in unloaded tiles
+    if "Town12" in SimulationParams.town_map or "Town13" in SimulationParams.town_map:
+        if len(egos) > 0:
+            hero_loc = egos[0].ego.get_location()
+            print(f"Filtering spawn points around Hero at {hero_loc}...")
+            # Filter within 2000m (matching or slightly less than stream distance)
+            vehicles_spawn_points = [p for p in vehicles_spawn_points 
+                                     if p.location.distance(hero_loc) < 2000.0]
+            print(f"Filtered spawn points: {len(vehicles_spawn_points)} remaining.")
+
+    print("Starting vehicle spawning...")
     v_all_actors, v_all_id = spawnVehicles(
         client, world, vehicles_spawn_points, blueprintsVehicles, SimulationParams.num_of_vehicles)
+    print(f"Spawned {len(v_all_actors)} vehicles.")
 
     for actor in v_all_actors:
         actor_type = actor.attributes.get('base_type')
 
         if actor_type in participant_density:
             participant_density[actor_type] += 1
+    
+    print("Performing initial world tick...")
     world.tick()
+    print("Initial world tick done.")
+
+    # --- Walker Spawning (Moved here) ---
+    print("Starting walker spawning...")
+    # For Large Maps, we need to pass location info to filter walker spawns (requires updating spawnWalkers)
+    hero_location = None
+    if "Town12" in SimulationParams.town_map or "Town13" in SimulationParams.town_map:
+        if len(egos) > 0:
+            hero_location = egos[0].ego.get_location()
+    
+    w_all_actors, w_all_id = spawnWalkers(
+        client, world, blueprintsWalkers, SimulationParams.num_of_walkers, hero_location)
+        
+    for actor in w_all_actors:
+        actor_type = actor.attributes['role_name']
+        if actor_type == "pedestrian":
+            participant_density["pedestrian"] += 1
+    print(f"Spawned {len(w_all_actors)} walkers.")
+    world.tick()
+    # ------------------------------------
 
     print("Starting simulation...")
 
