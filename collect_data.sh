@@ -203,7 +203,7 @@ for MAP_NAME in "${MAPS[@]}"; do
     conda activate "$POINTCEPT_CONDA_ENV"
 
     echo "=================================================="
-    echo "Running preprocess_ev.py..."
+    echo "Running preprocess_ev.py (EV Histogram + PCD Downsample)..."
     echo "=================================================="
     cd "$SEVD_DIR" # 元のディレクトリに戻る (念のため)
     python3 preprocess_projection_point.py --input-dir "$EGO_DIR"

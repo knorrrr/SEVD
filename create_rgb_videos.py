@@ -144,8 +144,7 @@ def create_video_from_images(input_dir, output_file, lidar_dir=None, lidar_to_ca
     
     print(f"Creating video: {output_file} from {len(image_files)} images...")
     
-    # tqdmで進捗を表示
-    for filename in tqdm(image_files, desc=os.path.basename(output_file), leave=False):
+    for filename in image_files:
         img = cv2.imread(filename)
         if img is not None:
             if lidar_dir and lidar_to_camera_matrix is not None and k_matrix is not None:
