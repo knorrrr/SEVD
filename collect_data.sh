@@ -220,9 +220,9 @@ if [ ${#ALL_EGO_DIRS[@]} -eq 0 ]; then
     exit 1
 fi
 echo "=================================================="
-echo "Running pcd_downsample.py with all collected directories..."
+echo "Running preprocess_pcd_downsample.py with all collected directories..."
 echo "=================================================="
-python3 pcd_downsample.py "${ALL_EGO_DIRS[@]}"
+python3 preprocess_pcd_downsample.py "${ALL_EGO_DIRS[@]}"
 
 echo "=================================================="
 echo "Running preprocess_evpcd.py with all collected directories..."
