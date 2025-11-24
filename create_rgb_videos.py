@@ -76,7 +76,8 @@ def main():
     args = parser.parse_args()
     
     input_root = args.input_root
-    output_dir = args.output if args.output else input_root
+    base_output_dir = args.output if args.output else input_root
+    output_dir = os.path.join(base_output_dir, "rgb_videos")
     
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
