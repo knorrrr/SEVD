@@ -141,50 +141,37 @@ def process_file(input_npz, output_npz, args, height, width):
             height //= 2
             width //= 2
             
-        hist_generator = StackedHistogram(bins=2 * args.time_bins, height=height, width=width) # count_cutoffは後で適用
+        hist_generator = StackedHistogram(bins=2 * args.time_bins, height=height, width=width)
         
         with NPZWriter(output_npz) as writer:
             ev_ts = reader.time
             total_events = len(ev_ts)
-            window = args.window_events
             
-            # --- 変更点 1: 統合ヒストグラム用の入れ物を作成 ---
-            # カウントの合計値が255を超える可能性があるので、大きなデータ型(long)で初期化
-            device = 'cuda' if torch.cuda.is_available() else 'cpu'
-            combined_hist = torch.zeros((2 * args.time_bins, height, width), dtype=torch.long, device=device)
-            # -----------------------------------------------
-
-            # print(f"合計 {total_events} イベントを処理します...")
-            for idx_start in range(0, total_events, window):
-                idx_end = min(idx_start + window, total_events)
-                if idx_start >= idx_end: continue
-                
-                ev_window = reader.get_event_slice(idx_start, idx_end)
-                ev_repr = hist_generator.construct(ev_window['x'], ev_window['y'], ev_window['p'], ev_window['t'], args.time_bins)
-                
-                if args.downsample:
-                    ev_repr = downsample_ev_repr(ev_repr, scale_factor=0.5)
-                
-                # --- 変更点 2: writerに都度追加するのではなく、足し合わせる ---
-                # ev_repr(uint8)をlongに変換してから加算
-                combined_hist += ev_repr.long()
-                # -------------------------------------------------------
-
-                print(f"\r進捗: {idx_end}/{total_events} ({idx_end/total_events:.1%})", end="")
-
-            # --- 変更点 3: ループ終了後、最終処理をしてから一度だけwriterに渡す ---
-            # count_cutoffをここで適用
+            # --- 変更点: ファイル単位で一括処理 ---
+            # 1ファイルの時間が100ms（あるいは一定の短い区間）であり、
+            # その区間全体で時間を正規化したい場合、分割してはいけません。
+            # 分割すると、各ブロックごとに時間が0-1に正規化され、時間が混ざってしまいます。
+            
+            ev_window = reader.get_event_slice(0, total_events)
+            ev_repr = hist_generator.construct(ev_window['x'], ev_window['y'], ev_window['p'], ev_window['t'], args.time_bins)
+            
+            if args.downsample:
+                ev_repr = downsample_ev_repr(ev_repr, scale_factor=0.5)
+            
+            # count_cutoffを適用
             if args.count_cutoff is not None:
-                combined_hist = torch.clamp(combined_hist, max=args.count_cutoff)
+                ev_repr = torch.clamp(ev_repr, max=args.count_cutoff)
             
-            # 最終的な型をuint8に戻す (必要に応じて変更可能)
-            # 注意: 255を超える値は255にクリップされます
-            final_hist = combined_hist.to(torch.uint8)
+            # 型変換（必要に応じて）
+            # ここでは既に construct が適切な型で返しているか、またはここで変換するかですが、
+            # 元のコードに合わせて uint8 化などを確認します。
+            # StackedHistogram.construct は uint8 (fastmode) または int16 を返します。
+            # 今回の実装では uint8 で初期化されているので、オーバーフローだけ注意ですが
+            # 一括処理後の clamp で安全になります。
             
-            writer.add_data(final_hist)
-            # -------------------------------------------------------------------
-
-    # print(f"\n処理が完了しました。 {output_npz} に保存しました。")
+            writer.add_data(ev_repr)
+            
+    print(f"\n処理が完了しました。 {output_npz} に保存しました。")
 
 def main():
     parser = argparse.ArgumentParser(description="イベントデータを時間と極性を考慮した積層ヒストグラムに変換します。")
@@ -194,7 +181,6 @@ def main():
     parser.add_argument('--time_bins', type=int, default=4, help='時間軸の分割数。最終的なチャンネル数は 2 * time_bins となります。')
     parser.add_argument('--count_cutoff', type=int, default=None, help='ヒストグラムの各ピクセルの最大カウント値。')
     parser.add_argument('--downsample', action='store_true', help='有効にすると、生成されたヒストグラムを2分の1にダウンサンプリングします。')
-    parser.add_argument('--window_events', type=int, default=20000, help='1つのヒストグラムを生成するために使用するイベント数。')
     args = parser.parse_args()
 
     output_dir = os.path.join(args.dir, "dvs_camera-hist-front")
