@@ -171,14 +171,14 @@ def process_file(input_npz, output_npz, args, height, width):
             
             writer.add_data(ev_repr)
             
-    print(f"\n処理が完了しました。 {output_npz} に保存しました。")
+    # print(f"\n処理が完了しました。 {output_npz} に保存しました。")
 
 def main():
     parser = argparse.ArgumentParser(description="イベントデータを時間と極性を考慮した積層ヒストグラムに変換します。")
     parser.add_argument('--dir', help='入力Dataset ディレクトリ（例: /path/to/dataset）')
     parser.add_argument('--height', type=int, default=480, help='イベントデータの高さ（ピクセル数）')
     parser.add_argument('--width', type=int, default=640, help='イベントデータの幅（ピクセル数）')
-    parser.add_argument('--time_bins', type=int, default=4, help='時間軸の分割数。最終的なチャンネル数は 2 * time_bins となります。')
+    parser.add_argument('--time_bins', type=int, default=10, help='時間軸の分割数。最終的なチャンネル数は 2 * time_bins となります。')
     parser.add_argument('--count_cutoff', type=int, default=None, help='ヒストグラムの各ピクセルの最大カウント値。')
     parser.add_argument('--downsample', action='store_true', help='有効にすると、生成されたヒストグラムを2分の1にダウンサンプリングします。')
     args = parser.parse_args()
@@ -198,13 +198,29 @@ def main():
 
     max_workers = min(50, len(npz_files)) # 並列数は最大50、またはファイル数まで
     print(f"並列数: {max_workers}, 全ファイル数: {len(npz_files)}, サイズ{args.height}x{args.width}, 合計チャンネル数={2 * args.time_bins}")
+    from tqdm import tqdm
+    
+    # tqdmで進捗を表示するために、executor.mapではなく、as_completedとtqdmを組み合わせるか、
+    # シンプルにリスト内包表記の中でtqdmを使う形にはできない（submitが即座に終わるため）。
+    # 完了した順にバーを進める実装にします。
+
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = [executor.submit(process_wrapper, input_npz) for input_npz in npz_files]
-        for future in concurrent.futures.as_completed(futures):
-            try:
-                future.result()
-            except Exception as e:
-                print(f"エラー: {e}")
+        
+        # tqdmで完了を監視
+        for _ in tqdm(concurrent.futures.as_completed(futures), total=len(npz_files), desc="Processing files"):
+            pass
+            # エラーチェックはここでやる必要があれば future.result() を呼ぶ
+            # for future in ... のループ変数はここには来ないので、
+            # エラーハンドリングが必要なら futuresリストを別で回すか、ここで future を受け取る形に修正が必要
+            
+    # エラーチェック用（tqdmループ内で行うとバーの表示が崩れることがあるため、必要なら別途実行、
+    # あるいは上記のループ内で future.result() を呼ぶ）
+    for f in futures:
+        try:
+            f.result()
+        except Exception as e:
+            print(f"エラー: {e}")
 
 if __name__ == '__main__':
     main()
