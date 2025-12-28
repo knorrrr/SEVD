@@ -90,7 +90,7 @@ def main(args):
     lidar_to_camera_matrix = np.identity(4)
     lidar_to_camera_matrix[:3, :3] = rotation_matrix
     lidar_to_camera_matrix[:3, 3] = relative_translation
-    lidar_to_camera_matrix = np.linalg.inv(lidar_to_camera_matrix)
+    carla/out/11_towns_each_6000_ticks_20251123_215345/Town01_Opt_23_11_2025_21_54_11/ego0/lidar-frontlidar_to_camera_matrix = np.linalg.inv(lidar_to_camera_matrix)
 
     # --- ▲▲▲ 設定はここまで ▲▲▲ ---
 

@@ -20,7 +20,7 @@ class LidarDistanceAnalyzer:
             vertical_fov: Vertical field of view in degrees (default: 26.9 for typical LiDAR)
         """
         self.base_dir = Path(base_dir)
-        self.distance_bins = distance_bins if distance_bins else [0, 10, 20, 30, 40, 50, 100]
+        self.distance_bins = distance_bins if distance_bins else [0, 2.5, 5, 7.5, 10, 12.5, 15, 17.5, 20, 30, 40, 50, 60, 70, 80, 90, 100]
         self.horizontal_fov = horizontal_fov
         self.vertical_fov = vertical_fov
         self.results = defaultdict(lambda: defaultdict(list))
@@ -86,7 +86,7 @@ class LidarDistanceAnalyzer:
         """Generate bin label"""
         min_dist = self.distance_bins[bin_index]
         max_dist = self.distance_bins[bin_index + 1]
-        return f"{min_dist:.0f}-{max_dist:.0f}m"
+        return f"{min_dist:g}-{max_dist:g}m"
     
     def calculate_sector_volume(self, r_min: float, r_max: float) -> float:
         """
@@ -224,7 +224,8 @@ class LidarDistanceAnalyzer:
                 f.write(f"  {'距離範囲':<15} {'総点数':<15} {'平均点数/ファイル':<20} {'割合':<10}\n")
                 f.write("  " + "-" * 60 + "\n")
                 
-                for bin_label in sorted(data['total_bin_counts'].keys()):
+                ordered_labels = [self.get_bin_label(i) for i in range(len(self.distance_bins) - 1)]
+                for bin_label in ordered_labels:
                     total = data['total_bin_counts'][bin_label]
                     avg = data['avg_bin_counts'][bin_label]
                     pct = data['bin_percentages'][bin_label]
@@ -237,7 +238,7 @@ class LidarDistanceAnalyzer:
                 f.write(f"  {'距離範囲':<15} {'累積密度(全フレーム)':<25} {'1フレームあたりの密度':<25}\n")
                 f.write("  " + "-" * 65 + "\n")
                 
-                for bin_label in sorted(data['bin_densities'].keys()):
+                for bin_label in ordered_labels:
                     total_density = data['bin_densities'][bin_label]
                     avg_density = data['avg_bin_densities'][bin_label]
                     f.write(f"  {bin_label:<15} {total_density:<25.2f} {avg_density:<25.2f}\n")
@@ -266,7 +267,8 @@ class LidarDistanceAnalyzer:
             f.write(f"  {'距離範囲':<15} {'総点数':<15} {'割合':<10}\n")
             f.write("  " + "-" * 40 + "\n")
             
-            for bin_label in sorted(overall_bin_counts.keys()):
+            ordered_labels = [self.get_bin_label(i) for i in range(len(self.distance_bins) - 1)]
+            for bin_label in ordered_labels:
                 count = overall_bin_counts[bin_label]
                 pct = (count / total_points) * 100 if total_points > 0 else 0
                 f.write(f"  {bin_label:<15} {count:<15,} {pct:>6.2f}%\n")
@@ -317,7 +319,7 @@ class LidarDistanceAnalyzer:
     def _plot_distance_distribution_by_town(self, results: Dict, output_path: Path):
         """Plot distance distribution by town as stacked bar chart"""
         towns = sorted(results.keys())
-        bin_labels = sorted(list(results[towns[0]]['bin_percentages'].keys()))
+        bin_labels = [self.get_bin_label(i) for i in range(len(self.distance_bins) - 1)]
         
         # Prepare data
         data = {bin_label: [] for bin_label in bin_labels}
@@ -356,7 +358,7 @@ class LidarDistanceAnalyzer:
             for bin_label, count in data['total_bin_counts'].items():
                 overall_bin_counts[bin_label] += count
         
-        bin_labels = sorted(overall_bin_counts.keys())
+        bin_labels = [self.get_bin_label(i) for i in range(len(self.distance_bins) - 1)]
         counts = [overall_bin_counts[label] for label in bin_labels]
         
         fig, ax = plt.subplots(figsize=(10, 8))
@@ -408,7 +410,7 @@ class LidarDistanceAnalyzer:
     
     def _plot_distance_boxplot(self, results: Dict, output_path: Path):
         """Plot distance distribution as boxplot"""
-        bin_labels = sorted(list(results[list(results.keys())[0]]['avg_bin_counts'].keys()))
+        bin_labels = [self.get_bin_label(i) for i in range(len(self.distance_bins) - 1)]
         
         # Prepare data
         data = {bin_label: [] for bin_label in bin_labels}

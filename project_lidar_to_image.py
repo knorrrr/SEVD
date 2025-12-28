@@ -90,13 +90,15 @@ def project_lidar_to_camera(lidar_path, image_path, output_path, lidar_to_camera
     u_coord = points_2d[:, 0].astype(np.int32)
     v_coord = points_2d[:, 1].astype(np.int32)
 
-    # 強度に応じて色を決定
-    # 元のスクリプトの調整値を参考
-    intensity = 4 * intensity - 3
+    # 距離(Depth)に応じて色を決定
+    depth = points_2d[:, 2]
+    max_dist = 50.0
+    norm_depth = np.clip(depth / max_dist, 0.0, 1.0)
+    
     color_map = np.array([
-        np.interp(intensity, VID_RANGE, VIRIDIS[:, 0]) * 255.0,
-        np.interp(intensity, VID_RANGE, VIRIDIS[:, 1]) * 255.0,
-        np.interp(intensity, VID_RANGE, VIRIDIS[:, 2]) * 255.0
+        np.interp(norm_depth, VID_RANGE, VIRIDIS[:, 0]) * 255.0,
+        np.interp(norm_depth, VID_RANGE, VIRIDIS[:, 1]) * 255.0,
+        np.interp(norm_depth, VID_RANGE, VIRIDIS[:, 2]) * 255.0
     ]).astype(np.uint8).T
 
     # 5. 点を描画して画像を保存
@@ -159,9 +161,10 @@ def main(args):
         os.makedirs(os.path.join(args.input_dir, "projection"))
 
     # 入力ディレクトリ内の.binファイルを検索
-    lidar_files = sorted([f for f in os.listdir(os.path.join(args.input_dir, "lidar-front")) if f.endswith('.bin')])
+    lidar_folder_path = os.path.join(args.input_dir, args.lidar_folder)
+    lidar_files = sorted([f for f in os.listdir(lidar_folder_path) if f.endswith('.bin')])
     if not lidar_files:
-        print(f"[エラー] 入力ディレクトリに.binファイルが見つかりません: {args.input_dir}")
+        print(f"[エラー] 入力ディレクトリに.binファイルが見つかりません: {lidar_folder_path}")
         return
 
     # 最初の画像からサイズを取得し、K行列を計算
@@ -179,19 +182,22 @@ def main(args):
     # ファイルをループして処理
     for lidar_file in lidar_files:
         basename = os.path.splitext(lidar_file)[0]
-        lidar_path = os.path.join(args.input_dir, "lidar-front", lidar_file)
+        lidar_path = os.path.join(lidar_folder_path, lidar_file)
         image_path = os.path.join(args.input_dir, "rgb_camera-front", basename + '.png')
         # output_path = os.path.join(args.output_dir, basename + '.png')
-        output_path = os.path.join(args.input_dir, "projection", basename + '.png')
+        output_path = os.path.join(args.input_dir, args.output_sub_dir, basename + '.png')
         
         print(f"処理中: {basename}")
         project_lidar_to_camera(lidar_path, image_path, output_path, lidar_to_camera_matrix, k_matrix, args.dot_extent)
+        break
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='LiDAR点群をカメラ画像に投影するスクリプト')
     parser.add_argument('--input-dir', type=str, required=True, help='LiDAR(.bin)とカメラ(.png)の入力ファイルが入ったディレクトリ')
     # parser.add_argument('--output-dir', type=str, required=True, help='投影結果の画像(.png)を保存するディレクトリ')
     parser.add_argument('-d', '--dot-extent', type=int, default=2, help='描画する点の大きさ (ピクセル単位)')
+    parser.add_argument('--lidar-folder', type=str, default='lidar-front', help='LiDARデータのフォルダ名')
+    parser.add_argument('--output-sub-dir', type=str, default='projection', help='出力画像の保存先サブディレクトリ名')
     
     args = parser.parse_args()
     main(args)
