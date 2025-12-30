@@ -461,7 +461,7 @@ def saveLidars(dvs, filepath, lidar):
             fp.writelines(str(lidar.transform) + "\n")
         # Save the DVS data if available
         dvs_events = np.frombuffer(dvs.raw_data, dtype=np.dtype([
-            ('x', np.uint16), ('y', np.uint16), ('t', np.int64), ('pol', np.bool)
+            ('x', np.uint16), ('y', np.uint16), ('t', np.int64), ('pol', bool)
         ]))
         output_file_path = os.path.join(
             filepath.replace("lidar", "dvs_camera"), f'dvs-{lidar.frame:07d}.npz')
@@ -496,7 +496,7 @@ def is_dvs_event_inside_bbox(event, x_min, y_min, x_max, y_max):
 def dvs_callback(data, filepath):
     timestamp = data.timestamp
     dvs_events = np.frombuffer(data.raw_data, dtype=np.dtype([
-        ('x', np.uint16), ('y', np.uint16), ('t', np.int64), ('pol', np.bool)]))
+        ('x', np.uint16), ('y', np.uint16), ('t', np.int64), ('pol', bool)]))
     dvs_img = np.zeros((data.height, data.width, 3), dtype=np.uint8)
     dvs_img[dvs_events[:]['y'], dvs_events[:]
             ['x'], dvs_events[:]['pol'] * 2] = 255
