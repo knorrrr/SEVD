@@ -20,8 +20,11 @@ ALL_DURATIONS=()
 # DURATION=6000
 # LARGE_MAP_DURATION=12000 # Duration for Town12 and Town13
 
-DURATION=18000
-LARGE_MAP_DURATION=36000 # Duration for Town12 and Town13
+# 9Towns
+DURATION=12000
+#2Towns
+LARGE_MAP_DURATION=60000
+# Duration for Town12 and Town13
 # --- 出力ディレクトリの構成 ---
 NUM_TOWNS=${#MAPS[@]}
 PARENT_OUTPUT_DIR_NAME="${NUM_TOWNS}_towns_each_${DURATION}_ticks_$(date +%Y%m%d_%H%M%S)"
