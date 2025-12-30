@@ -5,9 +5,9 @@ set -e
 
 # --- 変数定義 (ご自身の環境に合わせて修正してください) ---
 SEVD_DIR="/media/ssd/SEVD"
-CARLA_UE4_DIR="~/carla"
-CARLA_CONDA_ENV="carla0915"
-POINTCEPT_CONDA_ENV="pointcept-torch2.5.0-cu12.8"
+CARLA_UE4_DIR="~/CARLA_0.9.15" # CARLAのUE4ディレクトリパス
+CARLA_CONDA_ENV="carla"
+POINTCEPT_CONDA_ENV="pcept"
 OUTPUT_BASE_DIR="$SEVD_DIR/carla/out" # CARLAの出力先ベースディレクトリ
 
 # --- 1. マップリストの定義 ---
@@ -20,8 +20,8 @@ ALL_DURATIONS=()
 # DURATION=6000
 # LARGE_MAP_DURATION=12000 # Duration for Town12 and Town13
 
-DURATION=6000
-LARGE_MAP_DURATION=12000 # Duration for Town12 and Town13
+DURATION=18000
+LARGE_MAP_DURATION=36000 # Duration for Town12 and Town13
 # --- 出力ディレクトリの構成 ---
 NUM_TOWNS=${#MAPS[@]}
 PARENT_OUTPUT_DIR_NAME="${NUM_TOWNS}_towns_each_${DURATION}_ticks_$(date +%Y%m%d_%H%M%S)"
