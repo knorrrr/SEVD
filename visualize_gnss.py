@@ -4,9 +4,8 @@ import matplotlib.pyplot as plt
 import glob
 
 def visualize_gnss():
-    base_dir = "/media/ssd/SEVD/carla/out/11_towns_each_6000_ticks_20251123_215345/"
-    output_dir = "/media/ssd/SEVD/carla/out/11_towns_each_6000_ticks_20251123_215345/gnss_visualization"
-
+    base_dir = "/media/ssd/SEVD/carla/out/11_towns_each_12000_ticks_20251230_201113"
+    output_dir = "/media/ssd/SEVD/carla/out/11_towns_each_12000_ticks_20251230_201113/gnss_visualization"
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
         print(f"Created output directory: {output_dir}")
@@ -87,12 +86,8 @@ def visualize_gnss():
         # Plotting
         plt.figure(figsize=(12, 10))
         
-        sc = plt.scatter(lons, lats, c=speeds, cmap='jet', s=5, label='Trajectory')
-        cbar = plt.colorbar(sc)
-        cbar.set_label('Speed (m/s)')
-        
         # Add arrows
-        arrow_interval = 50
+        arrow_interval = 4  # Reduced interval for dense, line-like arrows
         if len(lons) > arrow_interval:
             u = np.diff(lons_arr)
             v = np.diff(lats_arr)
@@ -105,10 +100,26 @@ def visualize_gnss():
             u = np.append(u, 0)
             v = np.append(v, 0)
             
+            # Calculate scale to make arrows shorter but dense (approx 0.5% of the plot span)
+            span_x = lons_arr.max() - lons_arr.min()
+            span_y = lats_arr.max() - lats_arr.min()
+            max_span = max(span_x, span_y) if max(span_x, span_y) > 0 else 1.0
+            scale_factor = 1.0 / (max_span * 0.005)
+
             idx = np.arange(0, len(lons), arrow_interval)
-            plt.quiver(lons_arr[idx], lats_arr[idx], u[idx], v[idx], 
-                       angles='xy', scale_units='xy', scale=None, 
-                       color='black', width=0.002, headwidth=3, pivot='mid', zorder=5)
+            
+            # Use speeds for coloring arrows
+            Q = plt.quiver(lons_arr[idx], lats_arr[idx], u[idx], v[idx], speeds[idx],
+                       angles='xy', scale_units='xy', scale=scale_factor, 
+                       cmap='jet', width=0.006, headwidth=5, pivot='mid', zorder=5)
+            
+            cbar = plt.colorbar(Q)
+            cbar.set_label('Speed (m/s)')
+        else:
+            # Fallback for short trajectories
+            sc = plt.scatter(lons, lats, c=speeds, cmap='jet', s=5, label='Trajectory')
+            cbar = plt.colorbar(sc)
+            cbar.set_label('Speed (m/s)')
 
         plt.title(f"GNSS Trajectory & Speed - {town_dir_name}")
         plt.xlabel("Longitude")
