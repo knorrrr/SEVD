@@ -142,9 +142,10 @@ def create_video_from_images(input_dir, output_file, lidar_dir=None, lidar_to_ca
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     out = cv2.VideoWriter(output_file, fourcc, fps, size)
     
-    print(f"Creating video: {output_file} from {len(image_files)} images...")
+    town_name = os.path.basename(os.path.dirname(os.path.dirname(input_dir)))
+    desc = f"Processing {town_name}"
     
-    for filename in image_files:
+    for filename in tqdm(image_files, desc=desc, leave=False):
         img = cv2.imread(filename)
         if img is not None:
             if lidar_dir and lidar_to_camera_matrix is not None and k_matrix is not None:
@@ -156,7 +157,6 @@ def create_video_from_images(input_dir, output_file, lidar_dir=None, lidar_to_ca
             out.write(img)
     
     out.release()
-    print(f"Done: {output_file}")
 
 def process_town_directory(town_dir, output_base_dir, enable_lidar=True):
     """
