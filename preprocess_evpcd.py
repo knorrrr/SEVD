@@ -29,6 +29,16 @@ def generate_pkl(bin_dirs, durations):
 
         # usable_len = len(bin_files) - (len(bin_files) % 2)  # 奇数なら1つ減らす
         
+        # Load GNSS flow data
+        gnss_flow_path = os.path.join(bin_dir, "gnss_flow.pkl")
+        gnss_flow = {}
+        if os.path.exists(gnss_flow_path):
+            print(f"Loading GNSS flow from {gnss_flow_path}")
+            with open(gnss_flow_path, 'rb') as f:
+                gnss_flow = pickle.load(f)
+        else:
+             print(f"⚠️ Warning: GNSS flow file not found at {gnss_flow_path}")
+
         entries_in_this_dir = 0
         for i in range(0, len(bin_files) - 1):
             ev_frame = npz_files[i + 1]
@@ -40,12 +50,30 @@ def generate_pkl(bin_dirs, durations):
             pred_lidar_path = os.path.join(os.path.abspath(bin_dir), "lidar-front_filtered_downsampled" ,pred_fname)
             ev_path = os.path.join(os.path.abspath(bin_dir),"dvs_camera-hist-front", ev_frame)
 
-            all_data_list.append({
+            data_entry = {
                 "lidar_path": lidar_path,
                 "pred_lidar_path": pred_lidar_path,
                 "ev_path": ev_path, 
                 "lidar_token": lidar_token
-            })
+            }
+            
+            # Remove leading zeros carefully or just use as string key
+            # gnss_flow keys are strings of int(token)
+            token_key = str(int(lidar_token))
+            if token_key in gnss_flow:
+                data_entry['translation'] = gnss_flow[token_key]['translation']
+                data_entry['rotation'] = gnss_flow[token_key]['rotation']
+            else:
+                # Default to zero or handle missing?
+                # For now let's set zeros if missing to avoid errors, or skip?
+                # User might prefer explicit failure or zeros. 
+                # Zeros implies no movement.
+                print(f"⚠️ Warning: GNSS flow data not found for token {token_key}")
+                data_entry['translation'] = [0.0, 0.0, 0.0]
+                data_entry['rotation'] = [0.0, 0.0, 0.0]
+
+            all_data_list.append(data_entry)
+            entries_in_this_dir += 1
             entries_in_this_dir += 1
 
     # Summary info for this map

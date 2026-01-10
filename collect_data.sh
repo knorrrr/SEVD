@@ -211,6 +211,7 @@ for MAP_NAME in "${MAPS[@]}"; do
     cd "$SEVD_DIR" # 元のディレクトリに戻る (念のため)
     python3 preprocess_projection_point.py --input-dir "$EGO_DIR"
     python3 preprocess_ev.py --dir "$EGO_DIR"
+    python3 preprocess_gnss.py --input-dirs "$EGO_DIR"
     
     # Store duration for this run
     ALL_DURATIONS+=("$CURRENT_DURATION")
