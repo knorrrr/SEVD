@@ -28,6 +28,13 @@ speed_bins = {
     "70+ km/h": 0
 }
 
+# Initialize Matrix
+matrix = {
+    "Stopped": {k: 0 for k in speed_bins.keys()},
+    "Straight": {k: 0 for k in speed_bins.keys()},
+    "Curve": {k: 0 for k in speed_bins.keys()}
+}
+
 total_frames = 0
 outliers = 0
 
@@ -43,10 +50,12 @@ for pkl_file in pkl_files:
     try:
         keys = sorted(data.keys(), key=lambda x: int(x))
     except:
+        print(f"Skipping file due to sort error: {pkl_file}")
         continue
 
     key_list = list(keys)
     if len(key_list) < 2:
+        print(f"Skipping file due to <2 frames: {pkl_file}")
         continue
     
     # Extract arrays
@@ -64,57 +73,68 @@ for pkl_file in pkl_files:
         v = frame_speeds[i]
         w = frame_yaw_rates[i]
         
-        if v > MAX_VALID_SPEED:
-            outliers += 1
-            continue
+        # if v > MAX_VALID_SPEED:
+        #     outliers += 1
+        #     continue
             
         total_frames += 1
         
-        # Classification
+        # Classification (Motion)
         if v < SPEED_STOP_THRESHOLD:
-            cat = "Stopped"
+            motion_cat = "Stopped"
         elif abs(w) < YAW_RATE_THRESHOLD:
-            cat = "Straight"
+            motion_cat = "Straight"
         else:
-            cat = "Curve"
+            motion_cat = "Curve"
 
-        stats[cat]["count"] += 1
-        stats[cat]["sum_speed"] += v
-        
-        # Speed Bins (km/h)
+        # Classification (Speed Bin)
         v_kmh = v * 3.6
         if v < SPEED_STOP_THRESHOLD:
-             speed_bins["0 km/h (Stop)"] += 1
+             speed_cat = "0 km/h (Stop)"
         elif v_kmh < 10:
-            speed_bins["0-10 km/h"] += 1
+            speed_cat = "0-10 km/h"
         elif v_kmh < 30:
-            speed_bins["10-30 km/h"] += 1
+            speed_cat = "10-30 km/h"
         elif v_kmh < 50:
-            speed_bins["30-50 km/h"] += 1
+            speed_cat = "30-50 km/h"
         elif v_kmh < 70:
-            speed_bins["50-70 km/h"] += 1
+            speed_cat = "50-70 km/h"
         else:
-            speed_bins["70+ km/h"] += 1
+            speed_cat = "70+ km/h"
+            
+        matrix[motion_cat][speed_cat] += 1
 
 # Output
-print("\n" + "="*40)
-print("DATASET ANALYSIS REPORT")
-print("="*40)
-print(f"Total Frames Processed: {total_frames}")
+print("\n" + "="*80)
+print("DATASET ANALYSIS REPORT (MATRIX)")
+print("="*80)
+print(f"Total Frames: {total_frames}")
 print(f"Outliers Ignored (> {MAX_VALID_SPEED} m/s): {outliers}")
-print("\n[MOTION TYPE CLASSIFICATION]")
-print(f"{'Type':<15} | {'Count':<10} | {'Percent':<10} | {'Avg Speed (km/h)':<15}")
-print("-" * 60)
-for cat, data in stats.items():
-    count = data["count"]
-    pct = (count / total_frames * 100) if total_frames else 0
-    avg_speed = (data["sum_speed"] / count * 3.6) if count else 0
-    print(f"{cat:<15} | {count:<10} | {pct:>9.2f}% | {avg_speed:>15.2f}")
+print("-" * 80)
+print(f"Definitions:")
+print('  "stopped":  speed < 0.1 m/s')
+print('  "straight": speed >= 0.1 m/s AND abs(yaw_rate) < 2.0 deg/s')
+print('  "curve":    speed >= 0.1 m/s AND abs(yaw_rate) >= 2.0 deg/s')
+print("-" * 80)
 
-print("\n\n[SPEED DISTRIBUTION]")
-print(f"{'Range':<15} | {'Count':<10} | {'Percent':<10}")
-print("-" * 40)
-for bins, count in speed_bins.items():
-    pct = (count / total_frames * 100) if total_frames else 0
-    print(f"{bins:<15} | {count:<10} | {pct:>9.2f}%")
-print("="*40)
+# Print Matrix Header
+headers = list(speed_bins.keys())
+header_str = f"{'Motion':<10} | " + " | ".join([f"{h:<13}" for h in headers]) + " | Total"
+print(header_str)
+print("-" * len(header_str))
+
+# Print Rows
+for motion in ["Stopped", "Straight", "Curve"]:
+    row_counts = [matrix[motion][h] for h in headers]
+    row_total = sum(row_counts)
+    row_str = f"{motion:<10} | " + " | ".join([f"{c:<13}" for c in row_counts]) + f" | {row_total}"
+    print(row_str)
+
+print("-" * len(header_str))
+
+# Print Column Totals
+col_totals = [sum(matrix[m][h] for m in ["Stopped", "Straight", "Curve"]) for h in headers]
+grand_total = sum(col_totals)
+total_str = f"{'TOTAL':<10} | " + " | ".join([f"{c:<13}" for c in col_totals]) + f" | {grand_total}"
+print(total_str)
+print("="*80)
